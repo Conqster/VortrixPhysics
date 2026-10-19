@@ -113,7 +113,7 @@ namespace serialiser
 
 
 	static vx::StackString<128> directory("scenarios/");
-	static constexpr const char* defaulfDirectory = APP_ASSERT_DIR"/scenarios/";
+	static constexpr const char* defaulfDirectory = "assets/scenarios/";
 	bool Serialise(const vx::BodyManager* body_manager, const Camera& app_cam, const char* name, const char* directory, const char* info, Scenario* scenario);
 	bool Deserialise(vx::PhysicsWorld* io_physicsworld, Scenario* scenario, std::string& scene_name, std::string& scene_info, Camera& app_cam, const char* file_path);
 

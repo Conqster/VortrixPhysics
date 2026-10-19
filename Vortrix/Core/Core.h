@@ -15,7 +15,7 @@
 #define VX_PROFILING 1
 #if VX_PROFILING
 	#if defined(TRACY_ENABLE)
-		#define VX_USE_TRACY 1
+		#define VX_USE_TRACY 0
 	#endif // defined(TRACY_ENABLE)
 #endif // VX_PROFILING
 

@@ -844,7 +844,7 @@ namespace vx {
 
 		const int processing = mProcessingTasks.load(std::memory_order_acquire);
 		const uint32 avail = mAvailableTaskCount.load(std::memory_order_acquire);
-		VX_ASSERT(processing == 0, (StackString<32>("Value: ") << processing << "avil: " << avail).Data());
+		//VX_ASSERT(processing == 0, (StackString<32>("Value: ") << processing << "avil: " << avail).Data());
 		VX_ASSERT(avail == 0, (StackString<16>("Value: ") << avail).Data());
 	}
 

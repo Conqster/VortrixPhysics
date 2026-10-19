@@ -189,11 +189,11 @@ namespace vx {
 		{
 		public:
 
-			static const uint32 kLargeIslandSpitThreshold = 32;//128;//64;
+			static const uint32 kLargeIslandSpitThreshold = 8;//128;//64;
 
 			using BinMask = uint32;
 			static constexpr uint32 kMaxBin = 16; // toal mask bit for 4 bytes (32 bits) int
-			static constexpr uint32 kBatchSize = 64;//32;//16;
+			static constexpr uint32 kBatchSize = 8;//32;//16;
 
 
 

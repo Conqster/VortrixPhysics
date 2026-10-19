@@ -1491,7 +1491,7 @@ namespace vx {
 
 			uint32 split = ScanTrailingZeros(~uint32(mask));
 			split = VxMin(split, kMaxBin);
-			mask |= Bit32(split);//Bit8(split);
+			mask |= Bit32(split);
 				return split;
 		}
 		else if (body_active_idxA == Body::kInvalidActiveIdx)
@@ -1500,7 +1500,7 @@ namespace vx {
 
 			uint32 split = ScanTrailingZeros(~uint32(mask));
 			split = VxMin(split, kMaxBin);
-			mask |= Bit32(split);//Bit8(split);
+			mask |= Bit32(split);
 				return split;
 		}
 
@@ -1510,8 +1510,8 @@ namespace vx {
 
 		uint32 split = ScanTrailingZeros((~uint32(maskA) & ~uint32(maskB)));
 		split = VxMin(split, kMaxBin);
-		maskA |= Bit32(split);//Bit8(split);
-		maskB |= Bit32(split);//Bit8(split);
+		maskA |= Bit32(split);
+		maskB |= Bit32(split);
 		return split;
 
 	}

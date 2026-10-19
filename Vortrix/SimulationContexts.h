@@ -38,8 +38,9 @@ namespace vx {
 
 		struct SimulationStepProfilingData
 		{
+			static constexpr uint32 kMaxThreads = 20;
 			std::atomic<uint32> writeStepTotalJacobianSolved{ 0 };
-			uint32 total_jacobian_solved[12]; //<-- later max thread or hardware concurrency
+			uint32 total_jacobian_solved[kMaxThreads]; //<-- later max thread or hardware concurrency
 		};
 
 		SimulationStepProfilingData mSimStepProfiling;
@@ -53,16 +54,18 @@ namespace vx {
 
 	struct VelocitySolveProfile
 	{
-		uint32 total_jacobian_solved[12]{ 0 }; //<-- later max thread or hardware concurrency
+		static constexpr uint32 kMaxThreads = 20;
+
+		uint32 total_jacobian_solved[kMaxThreads]{ 0 }; //<-- later max thread or hardware concurrency
 		/// write on main thread, zero data races
 		uint32 sampleCount = 0;
-		uint32 contributionSampleCount[12] = { 0 };
+		uint32 contributionSampleCount[kMaxThreads] = { 0 };
 
 		double totalLoadBalanceEff = 0;
 
 		void ResetAccumulation()
 		{
-			for (uint32 i = 0; i < 12; ++i)
+			for (uint32 i = 0; i < kMaxThreads; ++i)
 			{
 				total_jacobian_solved[i] = 0;
 				contributionSampleCount[i] = 0;

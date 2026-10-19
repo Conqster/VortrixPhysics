@@ -207,7 +207,7 @@ unsigned int Shader::CompileShader(GLenum shader_type, const std::string& source
 
 		//VX_WARN("[SHADER]: Couldn't create a shader {", _type, "}, ", eLog, "File source: ", src);
 		const char* debug_src = (debug_defines.empty()) ? "N/A" : debug_defines.c_str();
-		VX_LOG_WARN("[SHADER]: Couldn't create a shader {", _type, "}, ", eLog, "\nShader Debug Defines: \n", debug_src, "\nFile source: \n", source.c_str());
+		VX_LOG_WARN("[SHADER:", mName, "]: Couldn't create a shader {", _type, "}, ", eLog, "\nShader Debug Defines: \n", debug_src, "\nFile source: \n", source.c_str());
 		
 		exit(-1);
 	}

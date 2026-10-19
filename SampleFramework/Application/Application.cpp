@@ -53,7 +53,7 @@
 #include "SampleFramework/Scenarios/EmptyScenario.h"
 #include "SampleFramework/Scenarios/RandomSpreadBodiesScenario.h"
 #include "SampleFramework/Scenarios/LoadedFromDiskScenario.h"
-#include "SampleFramework/Scenarios/MegaIslandScenario.h"
+//#include "SampleFramework/Scenarios/MegaIslandScenario.h"
 
 
 #include "SampleFramework/Instrumentation/ExportProfilingData.h"
@@ -339,12 +339,12 @@ void Application::ProfilingCaptureWindow()
 		ImGui::Checkbox("Reload Physics Every thread sequence", &mProfilingCaptureSettings.reloadPhysicsEveryThreadSequence);
 
 
-
-		if (mPhysicsWorld != nullptr && ImGui::BeginTable("", 12))
+		const uint32 max_hardware_concurrency = std::thread::hardware_concurrency();
+		if (mPhysicsWorld != nullptr && ImGui::BeginTable("", max_hardware_concurrency))
 		{
 
 			/// bins
-			for (vx::uint32 i = 0; i < 12; ++i)
+			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
 				ImGui::TableSetupColumn((vx::StackString<18>("Rank_") << i << "(Avg)").Data());
 
 			ImGui::TableHeadersRow();
@@ -353,14 +353,14 @@ void Application::ProfilingCaptureWindow()
 
 			const auto& profile = mPhysicsWorld->mVelocitySolveProfile;
 
-			for (vx::uint32 i = 0; i < 12; ++i)
+			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
 			{
 				ImGui::TableSetColumnIndex(i);
 				ImGui::Text("%d (%f)", profile.total_jacobian_solved[i], float(profile.total_jacobian_solved[i]) / float(profile.sampleCount));
 			}
 
 			ImGui::TableNextRow();
-			for (vx::uint32 i = 0; i < 12; ++i)
+			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
 			{
 				ImGui::TableSetColumnIndex(i);
 				ImGui::Text("(%f)", float(profile.total_jacobian_solved[i]) / float(profile.contributionSampleCount[i]));
@@ -467,7 +467,7 @@ Application::Application(const ApplicationSpecification& app_spec)
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RagdollScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<EmptyScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RandomSpreadBoxBodiesScenario>());
-	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<MegaIslandScenario>());
+	//mScenarioCatergoies.scenarios.push_back(vx::MakeScope<MegaIslandScenario>());
 	
 	ScenarioCatergory solver_scenarios;
 	solver_scenarios.name = "Solvers";
@@ -538,6 +538,7 @@ void Application::Run()
 	SET_VX_PROFILER_SAMPLE_INTERVAL_SECONDS(0);
 	SET_VX_PROFILER_FILTER(VX_PROFILER_DETERMINISTIC | VX_PROFILER_VARIABLERATE);
 	SET_VX_PROFILER_ALLOW_CONSOLE_LOG(false);
+	
 
 	//main loop {delta time >> camera 
 	while (mWindow.ProgramActive())
@@ -949,12 +950,14 @@ void Application::PhysicsSubstepProfilingDataCapture()
 		//mPhysicsWorld->Settings()->solver.velocityIterations = sweep[(capturedCount) % mProfilingCaptureSettings.iterationCountPerSequence];
 		mPhysicsWorld->Settings()->solver.velocityIterations = sweep[(capturedCount) % sweep.size()];
 
+		const vx::uint32 max_hardware_concurrency = std::thread::hardware_concurrency();
+
 		if ((capturedCount % mProfilingCaptureSettings.iterationCountPerSequence) == 0)
 		{
 			mProfilingCaptureSettings.threadCountSequence++;
 
 			/// complete profiline
-			if (mProfilingCaptureSettings.threadCountSequence > 11)
+			if (mProfilingCaptureSettings.threadCountSequence > max_hardware_concurrency - 1)
 			{
 				if (mProfilingCaptureSettings.closeAppOnComplete)
 					Quit();
@@ -970,15 +973,14 @@ void Application::PhysicsSubstepProfilingDataCapture()
 				///reset task coordinator 
 				vx::TaskCoordinatorMt* t = (vx::TaskCoordinatorMt*)(mPhysicsWorld->GetTaskCoordinator());
 				t->Quit();
-				const vx::uint32 max_hardware_concurrency = std::thread::hardware_concurrency() - 1;
 
-				t->BeginThreads(mProfilingCaptureSettings.threadCountSequence % 12);
+				t->BeginThreads(mProfilingCaptureSettings.threadCountSequence % max_hardware_concurrency);
 				vx::Profiler::ProfilerCollector::Instance().ResetProfiles();
 				if(mProfilingCaptureSettings.reloadPhysicsEveryThreadSequence)
 				{
 					mPhysicsDebugState.triggerReset = true;
-					mPhysicsWorldSettings->maxConcurrency = mProfilingCaptureSettings.threadCountSequence % 12;
-					mPhysicsWorld->Settings()->maxConcurrency = mProfilingCaptureSettings.threadCountSequence % 12;
+					mPhysicsWorldSettings->maxConcurrency = mProfilingCaptureSettings.threadCountSequence % max_hardware_concurrency;
+					mPhysicsWorld->Settings()->maxConcurrency = mProfilingCaptureSettings.threadCountSequence % max_hardware_concurrency;
 				}
 				mPhysicsWorld->Settings()->solver.velocityIterations = sweep[0];
 			}
