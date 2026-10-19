@@ -1,6 +1,6 @@
 # Vortix Physics Engine
 
-C++ real-time rigid body physics engine focused on broad-phase acceleration (BVH) with multicore constraint island solving.
+Vortrix Physics: A real-time 3D rigid body physics engine for games and simulation, designed for multicore scalability.
 
 <table align = "center"> 
   <tr>
@@ -18,17 +18,19 @@ C++ real-time rigid body physics engine focused on broad-phase acceleration (BVH
 <!--More [sample videos]()-->
 
 ## Features 
-* 3D rigid body simulation with symplectic Euler integration.
-* Analytical shapes: Sphere, Box, Capsule, Plane
-* Constraint: contact(non-penetration and friction), distance, point
-* Sequential Impulse (PGS) solver with warm starting
-* Symplectic Euler body integration
-* World Queries: Raycasting
-* Ragdoll
+* Physics & Collision
+  * 3D rigid body simulation with symplectic Euler integration.
+  * Analytical shapes: Sphere, Box, Capsule, Plane
+  * Dynamic BVH Broadphase: SAH rebuilds
+  * Constraint: contact(non-penetration and friction), distance, point
+  * Sequential Impulse (PGS) solver with warm starting
+  * Multicore island solving
+  * Symplectic Euler body integration
+  * World Queries: Raycasting
+  * Ragdoll
 
-* Performance / Architecture
-  *  Dynamic BVH Broadphase: SAH rebuilds
-  *  Multicore island solving on a task scheduler with a lock-free CAS work queue
+* System & Performance
+  *  Task coordination with a lock-free CAS work queue
   *  SIMD math (Vec3/Vec4/Mat44 intrinsics)
   *  Data-oriented design
   *  Reduce allocation during step loop via scratch allocator
@@ -43,7 +45,7 @@ C++ real-time rigid body physics engine focused on broad-phase acceleration (BVH
 - Launching Release build, <a href="Docs/Vortrix Physics Quick Manual – Navigating the Application.pdf">see sample framework navigation</a>
 
 ### Quick Manual 
- For detailed physics engine documentation, see the ["Documentation and Performance"]("#documentation-and-performance") section, for a quick physics engine setup:
+ For detailed physics engine documentation, see the ["Documentation and Performance"](#documentation-and-performance) section, for a quick physics engine setup:
  - <a href="Docs/Vortrix Physics Quick Manual – Installation (Project Generation and Compilation).pdf">Installation of the physics engine</a>, either source code or launching the provided executable
  - <a href="Docs/Vortrix Physics Quick Manual – Navigating the Application.pdf">Navigating the physics engine sample framework</a>
 
@@ -76,14 +78,15 @@ Vortrix started as a personal deep-dive into physics simulation, building on a m
 The long-term roadmap for Vortrix is partitioned across physics optimisation, diagnostics tooling, and game AI subsystem; extending the same scalability investigation themes beyond the solver. 
 
 * **Core Physics & Parallel Optimisation**
-  * **Multithreaded warm starting:** Resolve the existing data race on shared `SolveBody` velocities so the current sequential warm-start pass can move into per-batch island tasks. Also `CommitSolverState` lambda persistence so non-contact constraints benefit from warm starting, not just contacts.
-  * **Split-island position correction:** Extend the velocity solver's `Splitter` batching to the positional correction phase, which currently claims whole islands via `fetch_add`, removing the tail-latency bottleneck when one worker is left holding the largest island.
+  * **Multithreaded warm starting:** Resolve the existing data race on shared `SolverBody` velocities so the current sequential warm-start pass can move into per-batch island tasks. Also `CommitStateConstraint` lambda persistence so non-contact constraints benefit from warm starting, not just contacts.
+  * **Split-island position correction:** Extend the velocity solver's `Splitter` batching to the positional correction phase, which currently claims whole islands atomically, removing the tail-latency bottleneck when one worker is left holding the largest island.
   * **Parallel broadphase:** Parallelise BVH dirty-node traversal and pair generation `BVHBroadphase::ComputeCollidingPair` currently runs on a single worker while the rest integrate velocities.
   * **Convex hull collision (GJK/EPA):** Implement a Gilbert-Johnson-Keerthi distance solver and Expanding Polytope Algorithm pipeline for contact manifold generation on arbitrary convex shapes, as a fallback beyond the closed analytical shape set (sphere, box, capsule, plane).
   * **Shape casting (`CastShape`):** Extend the `WorldQuery`/`Broadphase` query interface with swept shape tests alongside the existing `CastRay`, the foundation for CCD, and independently useful for spawn-safety and character controller overlap checks.
   * **Continuous collision detection (CCD):** Build time-of-impact(TOI) sweeps on top of shape casting to mitigate fast-body tunnelling through thin geometry.
 
 * **Diagnostic & Renderer Extensions (`SampleFramework`)**
+  * Framework code cleanup and reorganisation
   * **Order-independent transparency (OIT):** Implement a compute-driven OIT buffer for correctly sorted alpha rendering; required because the renderer's single instanced draw call per mesh/geometry type forbids CPU-side draw-order sorting.
   * **Screen-space ambient occlusion (SSAO):** Add an SSAO pass to the debug renderer to give penetration and contact stacking clearer visual depth cues during inspection.
 
@@ -92,6 +95,8 @@ The long-term roadmap for Vortrix is partitioned across physics optimisation, di
   * **Steering & Perception:** Raycast-based perception (via `WorldQuery`) and obstacle-avoidance steering for actors/gameobject interacting with dynamic bodies.
 
 * **Long-Term Exploration**
+  * **Soft body dynamics:** Cloth and deformable bodies via XPBD of shape-matching constraints.
+  * **Mesh destruction:** Fracture and sub-shape generation for breakable rigid bodies.
   * **GPU compute simulation (Vulkan):** Prototype Vulkan compute offloads of the `ParticleWorld` kernel (integration, spring constraints, particle collision). The subsystem's embarrassingly parallel per-particle workload makes it the natural first GPU target, ahead of mesh destruction, cloth, and hair.
 
   
