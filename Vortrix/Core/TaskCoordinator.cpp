@@ -620,8 +620,9 @@ namespace vx {
 			{
 				std::unique_lock<std::mutex> no_task_lock(mTaskQueueMutex);
 
-				if (mProcessingTasks.load(std::memory_order_acquire) == 0 &&
-					mAvailableTaskCount.load(std::memory_order_acquire) == 0)
+				///to prevent race, check avail before if processing
+				if (mAvailableTaskCount.load(std::memory_order_acquire) == 0 &&
+					mProcessingTasks.load(std::memory_order_acquire) == 0)
 					break;
 
 				mMainWaitFlag.wait(no_task_lock, [this]()
@@ -752,8 +753,9 @@ namespace vx {
 			//if (mProcessingTasks.load(std::memory_order_acquire) <= 0)
 			//	break;
 
-			if (mProcessingTasks.load(std::memory_order_acquire) == 0 &&
-				mAvailableTaskCount.load(std::memory_order_acquire) == 0)
+			///to prevent race, check avail before if processing
+			if (mAvailableTaskCount.load(std::memory_order_acquire) == 0 &&
+				mProcessingTasks.load(std::memory_order_acquire) == 0)
 				break;
 		}
 
@@ -844,7 +846,7 @@ namespace vx {
 
 		const int processing = mProcessingTasks.load(std::memory_order_acquire);
 		const uint32 avail = mAvailableTaskCount.load(std::memory_order_acquire);
-		//VX_ASSERT(processing == 0, (StackString<32>("Value: ") << processing << "avil: " << avail).Data());
+		VX_ASSERT(processing == 0, (StackString<32>("Value: ") << processing << ", avil: " << avail).Data());
 		VX_ASSERT(avail == 0, (StackString<16>("Value: ") << avail).Data());
 	}
 

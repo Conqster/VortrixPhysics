@@ -90,7 +90,9 @@ namespace vx
 #define VX_ASSERT_INTERNAL_WARN_VOID_WITH_MSG(expr, msg) VX_ASSERT_RET_IMPL(expr, msg, 1, )
 #define VX_ASSERT_INTERNAL_WARN_VOID_NO_MSG(expr) VX_ASSERT_RET_IMPL(expr, nullptr, 1, )
 
+/// params( expression, fail return value, warning message)
 #define VX_ASSERT_WARN_RETURN(...) EXPAND_MACRO(VX_SELECT_3(__VA_ARGS__, VX_ASSERT_INTERNAL_WARN_RET_WITH_MSG, VX_ASSERT_INTERNAL_WARN_RET_NO_MSG)(__VA_ARGS__) )
+/// params( expression, warning message)
 #define VX_ASSERT_WARN_VOID(...) EXPAND_MACRO(VX_SELECT_2(__VA_ARGS__, VX_ASSERT_INTERNAL_WARN_VOID_WITH_MSG, VX_ASSERT_INTERNAL_WARN_VOID_NO_MSG)(__VA_ARGS__) )
 
 

@@ -55,6 +55,8 @@ public:
 		{
 			orientation = vx::Quat::LookRotation(fwd, up);
 			VX_ASSERT_WARN(orientation.IsUnitQuat(), "Issue Camera State Orientation is not unit.");
+			forward = orientation.RotateAxisZ();
+			up = orientation.RotateAxisY();
 		}
 
 		State(vx::Vec3 pos, float _pitch, float yaw) :

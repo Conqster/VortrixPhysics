@@ -169,4 +169,37 @@ namespace vx {
 	//	return buff;
 	//}
 
+
+
+	template<size_t N = 16, typename ...Args>
+	static vx::StackString<N> ConvertToString(const char* format, Args&&... args)
+	{
+		char buffer[N];
+		snprintf(buffer, sizeof(buffer), format, std::forward<Args>(args)...);
+		return vx::StackString<N>(buffer);
+	}
+
+	template<size_t N = 16>
+	static vx::StackString<N> ToString(float v, const char* format = "%.2f")
+	{
+		return ConvertToString<N>(format, v);
+	}
+
+	template<size_t N = 16>
+	static vx::StackString<N> ToString(double v, const char* format = "%.2f")
+	{
+		return ConvertToString<N>(format, v);
+	}
+
+	template<size_t N = 16>
+	static vx::StackString<N> ToString(int v, const char* format = "%.d")
+	{
+		return ConvertToString<N>(format, v);
+	}
+
+	template<size_t N = 32>
+	static vx::StackString<N> ToString(Vec3 v, const char* format = "[%.2f,%.2f,%.2f]")
+	{
+		return ConvertToString<N>(format, v.X(), v.Y(), v.Z());
+	}
 }

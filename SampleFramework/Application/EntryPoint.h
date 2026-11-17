@@ -26,6 +26,7 @@ int main(int argc, char** argv)
 		"--win_size x,y\n"
 		"--win_pos x,y\n"
 		"--full_screen\n"
+		"--maximise_win\n"
 		"--min_debug_lvl (Debug, Info, Warning, Error)"
 	);
 
@@ -49,6 +50,7 @@ int main(int argc, char** argv)
 	app_spec.windowPos[0] = 0;
 	app_spec.windowPos[1] = 0;
 	app_spec.centralisedWindow = false;
+	app_spec.maximiseWindow = false;
 	///Parse command line parameter
 	///Learning about "int main(int argc, char** argv)"
 	for (int arg_idx = 0; arg_idx < argc; ++arg_idx)
@@ -59,6 +61,11 @@ int main(int argc, char** argv)
 		{
 			VX_LOG_WARN("Enable Full Screen");
 			app_spec.launchFullScreen = true;
+		}
+		if (strncmp(arg, "--maximise_win", 15) == 0)
+		{
+			VX_LOG_WARN("Maximise Window");
+			app_spec.maximiseWindow = true;
 		}
 		///Window size 
 		if (strncmp(arg, "--win_size", 11) == 0)

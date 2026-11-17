@@ -7,6 +7,7 @@ struct ApplicationSpecification
 	int windowPos[2] = { 100, 100 };
 	bool disableBindlessSupport = false;
 	bool centralisedWindow = true;
+	bool maximiseWindow = false;
 };
 
 

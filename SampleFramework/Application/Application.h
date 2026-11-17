@@ -171,6 +171,7 @@ private:
 	std::vector<Scenario*> mPendingRunScenarios;
 	void LoadScenarioWindow();
 	void ScenarioInspectionWindow();
+	void ProgramWindowStateInfoWindow();
 
 	void ProfilingCaptureWindow();
 
@@ -286,6 +287,7 @@ private:
 		bool createConstraints = false;
 		bool showSolverBodyPhysicsBodyWindow = false;
 		bool profilingCaptureWindow = false;
+		bool programWindowStateInfoWindow = false;
 	}mPhysicsImGuiWindows;
 
 

@@ -17,6 +17,7 @@ struct WindowSpecification
 	unsigned char* iconPixel = nullptr;
 
 	bool centerWindow = true;
+	bool maximise = false;
 };
 
 namespace vx {
@@ -49,14 +50,22 @@ public:
 	static bool SupportsBindless() { return sSupportsBindless; }
 
 	vx::Vec2 MouseCursorPosition() const;
+	vx::Vec2 ComputePosition() const;
 
 	void FlushAndSwapBuffer();
 	void SwapBuffer() const;
 	void PollEvents() const;
 	bool ProgramActive() const;
 	bool Minimised() const { return mMinimised; }
+	bool Maximise();
+	bool Maximised() const;
 	void Close();
 	void Destroy() const;
+
+	int ComputeWindowCurrentMonitorIdx() const;
+
+	void FullScreen(bool value);
+	bool IsFullScreen() const;
 
 	using WindowResizeListener = std::function<void(uint32_t, uint32_t)>;
 	void SetWindowResizeListener(const WindowResizeListener& resize_func) { mWindowResizeListener = resize_func; }
@@ -67,7 +76,7 @@ private:
 	static unsigned int mWindowWidth;
 	static unsigned int mWindowHeight;
 
-	unsigned int mWindowPos[2] = { 100, 100 };
+	//unsigned int mWindowPos[2] = { 100, 100 };
 
 	bool mLockCursor = false;
 	bool mVSync = true;
@@ -75,6 +84,7 @@ private:
 
 	bool CreateDisplayWindow(const char* name, bool full_screen = false);
 	bool InitGraphicsInterface();
+
 
 	static void OnWindowResizeCallback(GLFWwindow* window, int width, int height);
 	static void OnWindowPosCallback(GLFWwindow* window, int x, int y);

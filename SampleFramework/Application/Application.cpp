@@ -53,6 +53,7 @@
 #include "SampleFramework/Scenarios/EmptyScenario.h"
 #include "SampleFramework/Scenarios/RandomSpreadBodiesScenario.h"
 #include "SampleFramework/Scenarios/LoadedFromDiskScenario.h"
+#include "SampleFramework/Scenarios/PendulumScenario.h"
 //#include "SampleFramework/Scenarios/MegaIslandScenario.h"
 
 
@@ -285,6 +286,39 @@ void Application::ScenarioInspectionWindow()
 	ImGui::End();
 }
 
+void Application::ProgramWindowStateInfoWindow()
+{
+	if (ImGui::Begin("Program Window State Window", &mPhysicsImGuiWindows.programWindowStateInfoWindow))
+	{
+		ImGui::Text("Window Name: %s", mWindow.FullTitle());
+		ImGui::Text("Width: %u, Height: %u.\nAspect Ratio: %f",
+			(unsigned int)(mWindow.Width()),
+			(unsigned int)(mWindow.Height()),
+			(float)(mWindow.AspectRatio()));
+
+		ImGui::Text("Cursor: %s", (mWindow.GetLockCursor()) ? "locked" : "unlocked");
+		ImGui::Text("VSync: %s", (mWindow.GetVSync()) ? "ON" : "OFF");
+
+		const auto& pos = mWindow.ComputePosition();
+		ImGui::Text("position: {x: %f, y: %f}", pos[0], pos[1]);
+		const auto& mouse_pos = mWindow.MouseCursorPosition();
+		ImGui::Text("Mouse position: {x: %f, y: %f}", mouse_pos[0], mouse_pos[1]);
+
+		ImGui::Text("Minimised: %s\nMaximised: %s",
+			(mWindow.Minimised()) ? "true" : "false",
+			(mWindow.Maximised()) ? "true" : "false");
+
+		ImGui::Text("Current Monitor Index: %d", mWindow.ComputeWindowCurrentMonitorIdx());
+
+		bool full_screen = mWindow.IsFullScreen();
+		if (ImGui::Checkbox("Is full screen", &full_screen))
+			mWindow.FullScreen(full_screen);
+
+
+	}
+	ImGui::End();
+}
+
 void Application::ProfilingCaptureWindow()
 {
 
@@ -387,9 +421,9 @@ Application::Application(const ApplicationSpecification& app_spec)
 	int count = std::strftime(mApplicationLaunchTime, sizeof(mApplicationLaunchTime), "%H%M", &time_info);
 
 	VX_LOG_INFO("Launching Application Program, \n\tName: ",
-		app_spec.name, "\n\tWindow Size: {", 
+		app_spec.name, "\n\t\tWindow Size: {", 
 		app_spec.windowSize[0], ", ", 
-		app_spec.windowSize[1], "}\n\tDisableBindlessSupport: ", 
+		app_spec.windowSize[1], "}\n\t\tDisableBindlessSupport: ", 
 		app_spec.disableBindlessSupport ? "True" : "False");
 
 	mAppName = app_spec.name;
@@ -401,6 +435,7 @@ Application::Application(const ApplicationSpecification& app_spec)
 	wind_spec.windowPos[1] = app_spec.windowPos[1];
 	wind_spec.disableBindlessSupport = app_spec.disableBindlessSupport;
 	wind_spec.centerWindow = app_spec.centralisedWindow;
+	wind_spec.maximise = app_spec.maximiseWindow;
 
 
 	ImageData img_data;
@@ -467,6 +502,7 @@ Application::Application(const ApplicationSpecification& app_spec)
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RagdollScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<EmptyScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RandomSpreadBoxBodiesScenario>());
+	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<PendulumScenario>());
 	//mScenarioCatergoies.scenarios.push_back(vx::MakeScope<MegaIslandScenario>());
 	
 	ScenarioCatergory solver_scenarios;
@@ -1044,6 +1080,14 @@ void Application::CheckInputs()
 {
 	VX_VARIABLE_PROFILE_FUNCTION();
 	
+
+	bool is_fullscreen = mWindow.IsFullScreen();
+	if (Input::GetKeyDown(IKeyCode::F11))
+		mWindow.FullScreen(!is_fullscreen);
+	else if (is_fullscreen && Input::GetKeyDown(IKeyCode::Escape))
+		mWindow.FullScreen(false);
+
+
 	bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
 	bool alt_pressed = Input::GetKey(IKeyCode::RightAlt) || Input::GetKey(IKeyCode::LeftAlt);
 	bool shift_pressed = Input::GetKey(IKeyCode::RightShift) || Input::GetKey(IKeyCode::LeftShift);
@@ -1916,6 +1960,7 @@ void Application::OnDrawImGuiOverlays()
 			if (ImGui::MenuItem("Application")) open_app_win = !open_app_win;
 			if (ImGui::MenuItem("Scenario Window Management")) mPhysicsImGuiWindows.scenarioWindowManagement = !mPhysicsImGuiWindows.scenarioWindowManagement;
 			if (ImGui::MenuItem("Profiling Data Capture Window")) mPhysicsImGuiWindows.profilingCaptureWindow = !mPhysicsImGuiWindows.profilingCaptureWindow;
+			if (ImGui::MenuItem("Program Window State Info Window")) mPhysicsImGuiWindows.programWindowStateInfoWindow = !mPhysicsImGuiWindows.programWindowStateInfoWindow;
 
 			ImGui::Separator();
 
@@ -2040,6 +2085,8 @@ void Application::OnDrawImGuiOverlays()
 	if (mPhysicsImGuiWindows.profilingCaptureWindow)
 		ProfilingCaptureWindow();
 
+	if (mPhysicsImGuiWindows.programWindowStateInfoWindow)
+		ProgramWindowStateInfoWindow();
 
 	if (open_phy_debug)
 	{
@@ -3755,6 +3802,7 @@ void Application::DrawHelpWindow(bool& p_open)
 	if (ImGui::Begin("Help", &p_open))
 	{
 		ImGui::SeparatorText("Inputs & Shortcuts");
+		ImGui::Text("F11 to toggle full screen, Esc to exit full screen");
 		ImGui::Text("WASD basic camera navigation");
 		ImGui::Text("Q to move camera up");
 		ImGui::Text("E to move camera down");

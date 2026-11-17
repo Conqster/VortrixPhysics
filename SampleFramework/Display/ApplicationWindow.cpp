@@ -130,8 +130,8 @@ bool ApplicationWindow::Init(const char* base_name, const WindowSpecification& w
 	mWindowWidth = win_spec.windowSize[0];
 	mWindowHeight = win_spec.windowSize[1];
 
-	mWindowPos[0] = win_spec.windowPos[0];
-	mWindowPos[1] = win_spec.windowPos[1];
+	int win_pos_x = win_spec.windowPos[0];
+	int win_pos_y = win_spec.windowPos[1];
 
 	if (win_spec.centerWindow)
 	{
@@ -145,8 +145,8 @@ bool ApplicationWindow::Init(const char* base_name, const WindowSpecification& w
 		int win_hw = win_spec.windowSize[0] * 0.5f;
 		int win_hh = win_spec.windowSize[1] * 0.5f;
 
-		mWindowPos[0] = hw - win_hw;
-		mWindowPos[1] = hh - win_hh;
+		win_pos_x = hw - win_hw;
+		win_pos_y = hh - win_hh;
 	}
 
 
@@ -173,7 +173,7 @@ bool ApplicationWindow::Init(const char* base_name, const WindowSpecification& w
 	int frame_top_egde;
 	int frame_left_egde;
 	glfwGetWindowFrameSize(mWindow, &frame_left_egde, &frame_top_egde, nullptr, nullptr);
-	glfwSetWindowPos(mWindow, mWindowPos[0] + frame_left_egde, mWindowPos[1] + frame_top_egde);
+	glfwSetWindowPos(mWindow, win_pos_x + frame_left_egde, win_pos_y + frame_top_egde);
 
 
 
@@ -201,6 +201,9 @@ bool ApplicationWindow::Init(const char* base_name, const WindowSpecification& w
 	glEnable(GL_DEBUG_OUTPUT);
 	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageCallback(ErrorMessageCallback, nullptr);
+
+	if (full_screen != IsFullScreen()) FullScreen(full_screen);
+	if (!full_screen && win_spec.maximise) Maximise();
 
 	return true;
 }
@@ -236,6 +239,13 @@ vx::Vec2 ApplicationWindow::MouseCursorPosition() const
 	return vx::Vec2(x, y);
 }
 
+vx::Vec2 ApplicationWindow::ComputePosition() const
+{
+	int x, y;
+	glfwGetWindowPos(mWindow, &x, &y);
+	return vx::Vec2(float(x), float(y));
+}
+
 void ApplicationWindow::FlushAndSwapBuffer()
 {
 	glfwSwapBuffers(mWindow);
@@ -259,6 +269,20 @@ bool ApplicationWindow::ProgramActive() const
 	return !glfwWindowShouldClose(mWindow);
 }
 
+bool ApplicationWindow::Maximise()
+{
+	VX_ASSERT_WARN_RETURN(mWindow != nullptr, false, "Non existing window handle to maximise");
+
+	glfwMaximizeWindow(mWindow);
+	return true;
+}
+
+bool ApplicationWindow::Maximised() const
+{
+	int maximised = glfwGetWindowAttrib(mWindow, GLFW_MAXIMIZED);
+	return (maximised == GLFW_TRUE);
+}
+
 void ApplicationWindow::Close()
 {
 	glfwSetWindowShouldClose(mWindow, true);
@@ -274,27 +298,11 @@ void ApplicationWindow::Destroy() const
 
 bool ApplicationWindow::CreateDisplayWindow(const char* name, bool full_screen)
 {
-	if (full_screen)
-	{
-		mWindowWidth = GetSystemMetrics(SM_CXSCREEN);
-		mWindowHeight = GetSystemMetrics(SM_CYSCREEN);
-	}
-
-
-	//create custom ui
-	//glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
-
-
-	//vx::Colour col(0.95f, 0.32f, 0.11f);
-
-	//int x, y, h;
-	//glfwGetMonitorWorkarea(glfwGetPrimaryMonitor(), &x, &y, nullptr, &h);
-	//const int size = h / 5;
-	//glfwWindowHint(GLFW_POSITION_X, x + size * (1 + (0 & 1)));
-	//glfwWindowHint(GLFW_POSITION_Y, y + size * (1 + (0 >> 1)));
-
-
 	mWindow = glfwCreateWindow(mWindowWidth, mWindowHeight, name, nullptr, nullptr);
+
+	int num_monitors;
+	GLFWmonitor** monitors = glfwGetMonitors(&num_monitors);
+
 
 	//glfwGetError
 	//GLenum GlewInitResult = glewInit();
@@ -309,6 +317,7 @@ bool ApplicationWindow::CreateDisplayWindow(const char* name, bool full_screen)
 		return false;
 	}
 
+
 	glfwMakeContextCurrent(mWindow);
 
 	glfwSwapInterval(int(mVSync));
@@ -318,6 +327,7 @@ bool ApplicationWindow::CreateDisplayWindow(const char* name, bool full_screen)
 	glfwSetWindowPosCallback(mWindow, OnWindowPosCallback);
 	glfwSetWindowIconifyCallback(mWindow, OnWindowMinimisedCallback);
 	glfwSetWindowUserPointer(mWindow, this);
+
 	
 	return true;
 }
@@ -332,6 +342,88 @@ bool ApplicationWindow::InitGraphicsInterface()
 
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 	return false;
+}
+
+int ApplicationWindow::ComputeWindowCurrentMonitorIdx() const
+{
+	int win_x, win_y;
+	glfwGetWindowPos(mWindow, &win_x, &win_y);
+
+	int num_monitors;
+	GLFWmonitor** monitors = glfwGetMonitors(&num_monitors);
+
+	size_t best = -1;
+	int best_overlap = 0;
+
+	for (size_t i = 0; i < (size_t)num_monitors; i++)
+	{
+		GLFWmonitor* curr_monitor = monitors[i];
+		const GLFWvidmode* mode = glfwGetVideoMode(curr_monitor);
+		int mx, my;
+		glfwGetMonitorPos(curr_monitor, &mx, &my);
+
+		int width =mode->width, height = mode->height;
+
+		//compute overlap area btw window rect and monitor rect
+		int x1 = vx::VxMax(win_x, mx);
+		int y1 = vx::VxMax(win_y, my);
+		int x2 = vx::VxMin(win_x + int(mWindowWidth), mx + width);
+		int y2 = vx::VxMin(win_y + int(mWindowHeight), my + height);
+
+		int overlap = vx::VxMax(0, x2 - x1) * vx::VxMax(0, y2 - y1);
+		if (overlap > best_overlap)
+		{
+			best_overlap = overlap;
+			best = i;
+		}
+	}
+	return int(best);
+}
+
+void ApplicationWindow::FullScreen(bool value)
+{
+	if (IsFullScreen() != value)
+	{
+
+		///cache old pos & size 
+		static int win_x = 0, win_y = 0,
+			width = 1280, height = 720;
+
+		if (value == false)
+		{
+			glfwSetWindowMonitor(mWindow, nullptr,
+				win_x, win_y,
+				width, height, 0);
+
+			return;
+		}
+
+		int curr_monitor_idx = ComputeWindowCurrentMonitorIdx();
+		GLFWmonitor* curr_monitor;
+		if (curr_monitor_idx == -1)
+			curr_monitor = glfwGetPrimaryMonitor();
+		else
+		{
+			int num_monitors;
+			GLFWmonitor** monitors = glfwGetMonitors(&num_monitors);
+			curr_monitor = monitors[curr_monitor_idx];
+		}
+
+		/// cache old data
+		glfwGetWindowPos(mWindow, &win_x, &win_y);
+		glfwGetWindowSize(mWindow, &width, &height);
+
+		const GLFWvidmode* mode = glfwGetVideoMode(curr_monitor);
+		glfwSetWindowMonitor(mWindow, curr_monitor,
+			0, 0,
+			mode->width, mode->height, mode->refreshRate);
+	}
+}
+
+bool ApplicationWindow::IsFullScreen() const
+{
+	GLFWmonitor* monitor = glfwGetWindowMonitor(mWindow);
+	return (monitor != nullptr);
 }
 
 void ApplicationWindow::OnWindowResizeCallback(GLFWwindow* window, int width, int height)
@@ -358,8 +450,8 @@ void ApplicationWindow::OnWindowPosCallback(GLFWwindow* window, int x, int y)
 {
 	if (ApplicationWindow* win = (ApplicationWindow*)glfwGetWindowUserPointer(window))
 	{
-		win->mWindowPos[0] = x;
-		win->mWindowPos[1] = y;
+		//win->mWindowPos[0] = x;
+		//win->mWindowPos[1] = y;
 	}
 }
 
