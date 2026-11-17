@@ -1,4 +1,4 @@
-# Vortix Physics Engine
+# Vortrix Physics Engine
 
 Vortrix Physics: A real-time 3D rigid body physics engine for games and simulation, designed for multicore scalability.
 
