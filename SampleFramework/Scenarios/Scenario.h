@@ -55,7 +55,7 @@ public:
 
 	/// PostPhysicsInteract() need to run before PostPhysicsStep(float dt) if interaction is needed for post physics step
 	virtual void PostPhysicsStep(float dt);
-	virtual void PostPhysicsInteract(bool physics_simulated); //hack: bool physics_simulated
+	virtual void PostPhysicsInteract(float dt, bool physics_simulated); //hack: bool physics_simulated
 
 	virtual void OnUI() {}
 	virtual void OnClose();
@@ -114,7 +114,7 @@ protected:
 
 	bool mAllowBaseMouseCast = true;
 	bool BlockedMouseCastRay();
-	void MouseClickCheck();
+	void MouseClickCheck(float dt);
 	void MouseCastRay(bool physics_simulated);
 
 	EClickEvent mMouseEvent = EClickEvent::None;

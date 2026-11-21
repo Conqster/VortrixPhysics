@@ -11,11 +11,18 @@
 struct ImageData
 {
 	void* pixels = nullptr;
+
 	uint32 width = 0;
 	uint32 height = 0;
 	
 	PixelFormat pxFormat = PixelFormat::Default;
 	PixelType pxType = PixelType::UByte;
+
+	bool IsValid() const
+	{
+		return pixels != nullptr &&
+			width > 0 && height > 0;
+	}
 };
 
 
@@ -203,6 +210,12 @@ struct BindlessTextureSampler : vx::NonCopyable
 
 		
 		uint64_t handle = glGetTextureSamplerHandleARB(texture.ID(), sampler.ID());
+		if (glIsTextureHandleResidentARB(handle))
+		{
+			VX_LOG_WARN("Bindless Textsure sample was already created for contexxt; Texture: ",
+				texture.ID(), ", Sampler: ", sampler.ID());
+			return handle;
+		}
 		GLCall(glMakeTextureHandleResidentARB(handle));
 		return handle;
 	}
@@ -224,14 +237,28 @@ struct BindlessTextureSampler : vx::NonCopyable
 class TextureFactory
 {
 public:
+
+	/// on fail texture handle is still create, to prevent invalid creation, call needs to use texture.valid to check if a texture is still valid
+	/// see other part of texture; (e.g sampler/BindlessTextureSampler), takes texture as ref and check if valid before creatung bindless texture sampler
+	/// the texture pointer could be reused to generate texture if the pointer is not ouft of scope
 	static vx::Ref<Texture> CreateFromFile(const std::string& path, bool flip, const char* name = nullptr, const bool generate_mipmap = false, 
 		 TextureFormat internal_format = TextureFormat::DefaultByte)
 	{
+		vx::Ref<Texture> tex = vx::MakeRef<Texture>();
+		VX_ASSERT_WARN_RETURN(vx::FileExist(path.c_str()), tex, (path + " Texture file does not exist").c_str());
+
 		ImageData img_data = TextureLoader::LoadFromFile(path, flip, internal_format);
 
-		vx::Ref<Texture> tex = vx::MakeRef<Texture>();
-		std::string _name = (name) ? name : "";
-		tex->CreateFromPixel(img_data.pixels, { img_data.width, img_data.height, internal_format, img_data.pxFormat, img_data.pxType, generate_mipmap, _name });
+		if(img_data.IsValid())
+		{
+			std::string _name = (name) ? name : "";
+			tex->CreateFromPixel(img_data.pixels, { img_data.width, img_data.height, internal_format, img_data.pxFormat, img_data.pxType, generate_mipmap, _name });
+		}
+		else
+		{
+			VX_ASSERT_WARN(img_data.pixels, (path + ": Invalid Texture image pixels").c_str());
+			VX_ASSERT_WARN(img_data.width > 0 && img_data.height > 0, (path + ": Invalid Texture image size").c_str());
+		}
 
 		TextureLoader::Free(img_data);
 		return tex;

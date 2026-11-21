@@ -79,7 +79,9 @@ The long-term roadmap for Vortrix is partitioned across physics optimisation, di
 
 * **Core Physics & Parallel Optimisation**
   * **Multithreaded warm starting:** Resolve the existing data race on shared `SolverBody` velocities so the current sequential warm-start pass can move into per-batch island tasks. Also `CommitStateConstraint` lambda persistence so non-contact constraints benefit from warm starting, not just contacts.
+  * **Kinematic bodies:** Add `*EMotionType::Kinematic*`.
   * **Split-island position correction:** Extend the velocity solver's `Splitter` batching to the positional correction phase, which currently claims whole islands atomically, removing the tail-latency bottleneck when one worker is left holding the largest island.
+  * **Collision filtering:** Per-body collision groups / no-contact pairs so connected bodies (e.g ragdoll limbs) ignore each other but collide with everything else.
   * **Parallel broadphase:** Parallelise BVH dirty-node traversal and pair generation `BVHBroadphase::ComputeCollidingPair` currently runs on a single worker while the rest integrate velocities.
   * **Convex hull collision (GJK/EPA):** Implement a Gilbert-Johnson-Keerthi distance solver and Expanding Polytope Algorithm pipeline for contact manifold generation on arbitrary convex shapes, as a fallback beyond the closed analytical shape set (sphere, box, capsule, plane).
   * **Shape casting (`CastShape`):** Extend the `WorldQuery`/`Broadphase` query interface with swept shape tests alongside the existing `CastRay`, the foundation for CCD, and independently useful for spawn-safety and character controller overlap checks.

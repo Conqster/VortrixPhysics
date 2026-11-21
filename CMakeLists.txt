@@ -1,7 +1,12 @@
 cmake_minimum_required(VERSION 3.18)
 
 #generate project
-project(VortrixPhysics VERSION 0.1 LANGUAGES CXX)
+project(VortrixPhysics VERSION 0.1.0 LANGUAGES CXX)
+
+message(STATUS "CMake C++ compiler: ${CMAKE_CXX_COMPILER_ID}")
+message(STATUS "CMake C++ compiler ver: ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "CMake system name: ${CMAKE_SYSTEM_NAME}")
+message(STATUS "CMake host system processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
 option(ENABLE_ALL_WARNINGS "Enable all warning" ON)
 # When turning this option on, the library will be compiled with debug symbols

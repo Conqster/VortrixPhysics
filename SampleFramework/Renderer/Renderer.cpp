@@ -34,9 +34,30 @@ void RendererImpl::Initialise(ApplicationWindow* display_window)
 	VX_ASSERT_WARN(success, "Failed create a shaders!!!");
 
 
-	mBrickTexture =  TextureFactory::CreateFromFile("assets/textures/floor_brick/patterned_brick_floor_diff.jpg", true, "Brick");
-	mCheckersTexture =  TextureFactory::CreateFromFile("assets/textures/test_checkers.jpg", true, "Checkers Texture");
+
 	mPlainTexture = TextureFactory::CreateFromFile("assets/textures/plain64.png", true, "White");
+	if (!mPlainTexture->IsValid()) ///generate a plain texture data
+	{
+		uint32 w = 64;
+		uint32 h = w;
+
+		TextureFormat internal_format = TextureFormat::RGBA8;
+		PixelFormat px_format = PixelFormat::RGBA;
+		PixelType px_type = PixelType::UByte;
+		
+		uint32 channel_count = PixelFormatChannelCount(px_format);
+
+		std::vector<uint8> px(w * h * channel_count, 255);
+
+		mPlainTexture->CreateFromPixel((const void*)px.data(),
+			{ w, h, internal_format, px_format, px_type, true, "Plain white texture"});
+	}
+	if (!(mBrickTexture = TextureFactory::CreateFromFile("assets/textures/floor_brick/patterned_brick_floor_diff.jpg", true, "Brick"))->IsValid())
+	{
+		VX_ASSERT_WARN("brick sharing plain texture");
+		mBrickTexture = mPlainTexture;
+	}
+	mCheckersTexture = TextureFactory::CreateFromFile("assets/textures/test_checkers.jpg", true, "Checkers Texture");
 
 	mLinearRepeatSampler = new Sampler(SamplerCreateInfo());
 	mLinearRepeatSampler = new Sampler({ TextureWrap::ClampToEdge, TextureFilter::Linear });

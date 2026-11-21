@@ -168,7 +168,7 @@ bool Scenario::BlockedMouseCastRay()
 	return block;
 }
 
-void Scenario::MouseClickCheck()
+void Scenario::MouseClickCheck(float dt)
 {
 	bool last_frame_active = (mMouseEvent == EClickEvent::Down ||
 		mMouseEvent == EClickEvent::Down);
@@ -210,9 +210,9 @@ void Scenario::MouseClickCheck()
 		Input::GetKeyDown(IKeyCode::Y) ? -1.0f : 0.0f;
 
 	dir = Input::GetScrollWheel();
-	float delta = 0.5f;
+	//VX_LOG_DEBUG("Mouse Input: ", dir);
+	float delta = dt * 25.0f;
 	t_dist = vx::VxMax(0.0f, t_dist + (dir * delta));
-	//VX_LOG_DEBUG("Mouse Input: ", Input::GetScrollWheel());
 
 }
 
@@ -485,9 +485,9 @@ void Scenario::PostPhysicsStep(float dt)
 	}
 }
 
-void Scenario::PostPhysicsInteract(bool physics_simulated)
+void Scenario::PostPhysicsInteract(float dt, bool physics_simulated)
 {
-	MouseClickCheck();
+	MouseClickCheck(dt);
 	if (mAllowBaseMouseCast)MouseCastRay(physics_simulated);
 }
 

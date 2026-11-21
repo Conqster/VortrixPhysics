@@ -61,35 +61,35 @@
 
 //CPU arch detection 
 #if defined(_M_X64) || defined(__x86_64__) || defined(_M_AMD64)
-	#define VX_ARCH_X64 
+#define VX_ARCH_X64 
 #elif defined(_M_IX86) || defined(__i386__) || defined(__i386)
-	#define VX_ARCH_X86
+#define VX_ARCH_X86
 #endif // defined(_M_X64) || defined(__x86_64__) || defined(_M_AMD64)
 
 #if defined(VX_ARCH_X64) || defined(VX_ARCH_X86)
 
-	#if !defined(VX_SIMD_SSE)
-		#define VX_SIMD_SSE
-	#endif // !defined(VX_SSE)
+#if !defined(VX_SIMD_SSE)
+#define VX_SIMD_SSE
+#endif // !defined(VX_SSE)
 
-	#if defined(__FMA__)
-		#define VX_FMA
-	#elif defined(_m_FMA)
-		#define VX_FMA
-	#elif defined(__AVX2__)
-		#define VX_SIMD_FMA
-	#endif // defined(__FMA__)
+#if defined(__FMA__)
+#define VX_FMA
+#elif defined(_m_FMA)
+#define VX_FMA
+#elif defined(__AVX2__)
+#define VX_SIMD_FMA
+#endif // defined(__FMA__)
 
 #endif // defined(VX_ARCH_X64) || defined(VX_ARCH_X86)
 
 
 
 #if defined(VX_DISABLE_FORCE_INLINE)
-	#define VX_INLINE inline
+#define VX_INLINE inline
 #elif defined(_MSC_VER)
-	#define VX_INLINE __forceinline
+#define VX_INLINE __forceinline
 #else
-	#define VX_INLINE inline __attribute__((always_inline))
+#define VX_INLINE inline __attribute__((always_inline))
 #endif
 
 
@@ -97,33 +97,33 @@
 
 
 #if defined(_MSC_VER)
-	#define VX_DEBUG_BREAK() __debugbreak()
+#define VX_DEBUG_BREAK() __debugbreak()
 #endif // defined(_MSC_VER)
 
 
 #ifdef _WIN32
 
-	#ifdef VPHX_SHARED_LIBRARY
-		#ifdef VPHX_BUILD_SHARED_LIBRARY
-			#define VX_API __declspec(dllexport)
-		#else
-			#define VX_API __declspec(dllimport)
-		#endif // VPHX_BUILD_SHARED_LIBRARY
-	#else
-		#define VX_API 
-	#endif // VPHX_SHARED_LIBRARY
+#ifdef VPHX_SHARED_LIBRARY
+#ifdef VPHX_BUILD_SHARED_LIBRARY
+#define VX_API __declspec(dllexport)
+#else
+#define VX_API __declspec(dllimport)
+#endif // VPHX_BUILD_SHARED_LIBRARY
+#else
+#define VX_API 
+#endif // VPHX_SHARED_LIBRARY
 
 #else
-	#define VX_API __attribute__((visibility("default")))
+#define VX_API __attribute__((visibility("default")))
 #endif // _WIN32
 
 
 #if defined(_MSC_VER)
-	#define VX_PACK_PUSH(n) __pragma(pack(push, n))
-	#define VX_PACK_POP __pragma(pack(pop))
+#define VX_PACK_PUSH(n) __pragma(pack(push, n))
+#define VX_PACK_POP __pragma(pack(pop))
 #elif defined(__GNUC__) || defined(__clang__)
-	#define VX_PACK_PUSH(n) _Pragma(VX_STRINGIFY(pack(push, n)))
-	#define VX_PACK_POP _Pragma("pack(pop)")
+#define VX_PACK_PUSH(n) _Pragma(VX_STRINGIFY(pack(push, n)))
+#define VX_PACK_POP _Pragma("pack(pop)")
 #endif // defined(_MSC_VER)
 
 
@@ -143,6 +143,7 @@
 #include <vector>
 
 #include <filesystem>
+
 namespace vx
 {
 
@@ -289,6 +290,15 @@ namespace vx
 
 		return file_path;
 	}
+
+
+	inline bool FileExist(const char* file)
+	{
+		namespace fs = std::filesystem;
+		const fs::path _path(file);
+		return fs::is_regular_file(_path);
+	}
+
 
 
 	template<typename T, typename CompareT>

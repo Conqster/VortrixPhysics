@@ -460,7 +460,7 @@ private:
 	vx::Ref<Shader> mGeometryShader;
 	vx::Ref<Shader> mInstanceShadowDepthShader;
 	vx::Ref<BindlessTextureSampler> mCheckersTexSamplerBindless;
-	vx::Ref<BindlessTextureSampler> mMeladyTexSamplerBindless;
+	vx::Ref<BindlessTextureSampler> mBrickTexSamplerBindless;
 	vx::Ref<BindlessTextureSampler> mPlainTexSamplerBindless;
 	///might have to move this as part of 
 	///Geometry manage there own instance buffer or might 
@@ -1161,7 +1161,7 @@ private:
 		mBoxGeometry = vx::MakeRef<Geometry>(CreateTriangleBatch(tri_list.data(), tri_list.size()));
 
 		mCheckersTexSamplerBindless = vx::MakeRef<BindlessTextureSampler>(*mCheckersTexture, *mLinearRepeatSampler);
-		mMeladyTexSamplerBindless = vx::MakeRef<BindlessTextureSampler>(*mBrickTexture, *mLinearRepeatSampler);
+		mBrickTexSamplerBindless = vx::MakeRef<BindlessTextureSampler>(*mBrickTexture, *mLinearRepeatSampler);
 		mPlainTexSamplerBindless = vx::MakeRef<BindlessTextureSampler>(*mPlainTexture, *mLinearRepeatSampler);
 		//VX_ASSERT(mWindow == nullptr, "");
 
