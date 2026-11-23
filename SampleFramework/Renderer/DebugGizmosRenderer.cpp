@@ -11,6 +11,8 @@
 
 #include "Vortrix/Core/Profiler.h"
 
+#include "Vortrix/Core/Colours.h"
+
 bool DebugGizmosRendererImpl::Init(ApplicationWindow* window)
 {
 	mActiveWindow = window;

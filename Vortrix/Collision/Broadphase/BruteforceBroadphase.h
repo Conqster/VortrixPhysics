@@ -9,6 +9,7 @@
 #include "Dynamics/Body/BodyManager.h"
 
 #include "Vortrix/SimulationContexts.h"
+#include "Vortrix/Core/Colours.h"
 
 namespace vx
 {

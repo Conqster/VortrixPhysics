@@ -2,6 +2,7 @@
 #include "Vortrix/Particles/Particle.h"
 #include "Vortrix/Visuals/Renderers.h"
 
+#include "Vortrix/Core/Colours.h"
 
 namespace vx::Particles
 {

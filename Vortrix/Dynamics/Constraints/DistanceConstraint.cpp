@@ -6,6 +6,7 @@
 
 #include "Vortrix/Dynamics/IslandCoordinator.h"
 
+#include "Vortrix/Core/Colours.h"
 
 namespace vx{
 

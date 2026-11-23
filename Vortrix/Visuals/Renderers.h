@@ -8,6 +8,8 @@ class ApplicationWindow;
 struct DrawCommand;
 class IRenderTarget;
 
+#include "Vortrix/Core/Colours.h"
+
 namespace vx {
 	
 	//#include <GLM/glm/glm.hpp>
@@ -25,7 +27,6 @@ namespace vx {
 	};
 
 	struct AABB;
-	struct Colour;
 	
 	enum class ERenderInstanceFlags : uint32;
 

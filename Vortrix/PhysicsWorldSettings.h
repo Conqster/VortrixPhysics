@@ -5,7 +5,7 @@
 #include "Vortrix/Dynamics/ConstraintSolver/CombineFrictionRestitution.h"
 
 
-
+#include "Vortrix/Core/Colours.h"
 
 
 namespace vx

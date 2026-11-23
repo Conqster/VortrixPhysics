@@ -38,6 +38,8 @@
 #include "Core/TaskCoordinator.h"
 #include "Dynamics/IslandCoordinator.h"
 
+#include "Vortrix/Core/Colours.h"
+
 
 namespace vx
 {

@@ -384,6 +384,14 @@ namespace vx
 		return Vec2(x * inv, y * inv);
 #endif // VX_SIMD_SSE
 	}
+	VX_INLINE Vec2 vx::operator/(const float lhs, const Vec2& rhs)
+	{
+#ifdef VX_SIMD_SSE
+		return Vec2(_mm_div_ps(_mm_set1_ps(lhs), rhs.SimdValue()));
+#else
+		return Vec2(lhs/rhs.x, lhs/rhs.y);
+#endif // VX_SIMD_SSE
+	}
 
 	inline VX_INLINE Vec2& Vec2::operator/=(float scalar)
 	{

@@ -15,7 +15,6 @@
 
 #include "Vortrix/PhysicsWorldSettings.h"
 
-
 class PhysicsAppSetting
 {
 public:
@@ -38,6 +37,8 @@ public:
 
 	const State& StateStats() const { return mState; }
 	State& StateStats() { return mState; }
+
+	void Pause(bool v) { mState.paused = v; }
 
 	void SetFrequency(int hz)
 	{
@@ -118,7 +119,6 @@ private:
 	{
 		vx::uint32 captureEveryPhysicsStep = 120;
 
-		static constexpr const char* kPath = "Logs/";
 		vx::StackString<64> name;
 
 		//vx::uint32 threadIdxSequence = 0;
@@ -134,10 +134,11 @@ private:
 
 	//private:
 		//optimise later
-		vx::StackString<128> filename = vx::StackString<128>("Logs/");
+		//vx::StackString<128> filename = vx::StackString<128>("Logs/");
 	};
 
 	ProfilingCaptureSettings mProfilingCaptureSettings;
+	vx::Scope<class ProfilingSession> mProfilingSession;
 
 	//Remove later
 	RendererImpl mRenderer;
@@ -173,7 +174,11 @@ private:
 	void ScenarioInspectionWindow();
 	void ProgramWindowStateInfoWindow();
 
+	void DebugDrawWindow(bool* p_open);
+
 	void ProfilingCaptureWindow();
+
+	void TempPhysicsSettings(bool* p_open);
 
 	vx::RenderSettings mPhysicsRenderSettings{};
 
@@ -188,6 +193,8 @@ public:
 	//main loop
 	void Run();
 	void ResetWorld(bool& reset_flag);
+	[[nodiscard]] vx::PhysicsWorld* CreatePhysicsWorld(vx::PhysicsWorldSettings* setting);
+	void SetupScenario(Scenario& scenario);
 	void ResetParticleWorld(bool& reset_flag);
 
 private:
@@ -230,15 +237,18 @@ private:
 	void SubmitRenderObjects();
 
 	void OnExpandDrawScenarioCatergory(const ScenarioCatergory& catergory);
+	
+	
 	void OnDrawImGuiOverlays();
+
+	void SimulationDetailOverlay();
+	void ApplicationDetailPanel(bool* p_open);
 
 	void OnDrawBodiesOverlays();
 
-	void PhysicsSettingItemOverlays();
-	void DrawProfileOverlay();
+	void DrawProfilePanel();
 	void CreateNewPhysicsBodyWindow();
-	void PhysicsCollisionWindows();
-	void DrawUIRendererResourcesPanel(/*bool* p_open*/);
+	void DrawUIRendererResourcesPanel(bool* p_open);
 
 	void PhysicsIslandCoordImGuiWindow();
 	/// window tab of PhysicsIslandCoordImGuiWindow
@@ -254,9 +264,7 @@ private:
 
 	void CreateNewCustomPhysicsObject();
 
-	void DrawUICameraStatePanel();
 	void DrawUI_LightingPanel();
-	void DrawUI_ShadowPanel();
 	void PhysicsInteraction();
 
 	void DrawHelpWindow(bool& p_open);

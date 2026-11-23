@@ -11,12 +11,14 @@ namespace vx{
 }
 class Texture;
 
+#include "Vortrix/Core/Colours.h"
 #include "Vortrix/Vortrix.h"
 
 
 #include "Vortrix/Dynamics/Body/EBodyDebugFlags.h"
 #include "Vortrix/Dynamics/Body/EDynamicsDofs.h"
 #include "Vortrix/Dynamics/Body/BodyID.h"
+
 namespace vx{
 	class PhysicsWorld;
 	class BodyManager;
@@ -29,16 +31,88 @@ namespace vx{
 	class PointConstraint;
 }
 
+typedef int ImGuiTreeNodeFlags;
+typedef int ImGuiSliderFlags;
+typedef int ImGuiWindowFlags;
+
+
+/// change EditorGUI/AppGUI
 class EditorImGui
 {
 public:
+	static vx::Colour kAccent;// = vx::Colour(0.3f, 0.75f, 0.8f, 1.0f);
+	static vx::Colour kSecondaryAccent;// = vx::Colour(.102f, .42f, .478f, 1.0f);
+
+	static  ImGuiTreeNodeFlags kTreeNodeFlags;
+
+	//static constexpr vx::Colour ty = 0;
+
+	static constexpr float kSliderWidth = 100.0f;
+
+	static bool SliderInt(const char* label,
+		int* v, int v_min, int v_max, const char* format = "%d",
+		ImGuiSliderFlags flags = 0);
+
+	static bool SliderFloat(const char* label,
+		float* v, float v_min, float v_max, const char* format = "%.2f",
+		ImGuiSliderFlags flags = 0);
+
+	static bool DragFloat(const char* label, float* v,
+		float v_speed = 1.0f, float v_min = 0.0f, float v_max = 0.0f,
+		const char* format = "%.2f", ImGuiSliderFlags flags = 0);
+
+	// NB: v_speed is float to allow adjusting the drag speed with more precision
+	static bool DragInt(const char* label, int* v,
+		float v_speed = 1.0f, int v_min = 0, int v_max = 0,
+		const char* format = "%.2f", ImGuiSliderFlags flags = 0);
+
+	static void TextColoured(const vx::Colour col, const char* fmt, ...);
+	static void TextColourWrapped(const vx::Colour col, const char* fmt, ...);
+
+	struct ScopePushItemWidth {
+		ScopePushItemWidth(float width);
+		~ScopePushItemWidth();
+	};
+
+
+	enum class EPanelScreenAnchor : vx::uint8
+	{
+		TopLeft,
+		BottomLeft,
+		TopRight,
+		BottomRight,
+	};
+
+	void ResolvePanelPosSize(float target_width, float target_height,
+		vx::Vec2& o_pos, vx::Vec2& o_size,
+		EPanelScreenAnchor screen_anchor = EPanelScreenAnchor::TopLeft,
+		vx::Vec2 max_ratio_screen = vx::Vec2(1.0f / 4));
+
+	static bool BeginPanel(const char* name, bool* p_open, ImGuiWindowFlags flags = 0);
+	bool BeginPanel(const char* name, bool* p_open, float target_width, float target_height,
+		EPanelScreenAnchor screen_anchor = EPanelScreenAnchor::TopLeft,
+		vx::Vec2 max_ratio_screen = vx::Vec2(1.0f / 4),
+		ImGuiWindowFlags flags = 0);
+
+	static void EndPanel();
+
+
+	/// intermidate values
+	vx::Vec2 mFrameWorkableScreenSize = vx::Vec2(0);
+	float mFrameMenuItemY = 25.0f;
+
 	void Initialise(GLFWwindow* glfw_win);
-	void BeginNewFrame();
+	void BeginNewFrame(float screen_width, float screen_height);
+	//void BeginNewFrame();
 	void RenderFrame();
 	void Shutdown();
 
 	bool UIBlockingMouseInput() const;
 	bool UIBlockingInput();
+
+
+	bool BeginMainMenu()const;
+	void EndMainMenu();
 
 	void DrawParticlesOverlayItems(std::vector<vx::Particles::Particle>& particles) const;
 

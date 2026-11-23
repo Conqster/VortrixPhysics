@@ -6,6 +6,106 @@
 #include <string>
 #include <vector>
 
+#include <format>
+#include <chrono>
+
+static void ExportProfilingDataToCSV(const std::string& file_name,
+	std::uint32_t active_threads, std::uint32_t iterations, std::uint32_t constraint_count);
+namespace vx {
+	struct VelocitySolveProfile;
+	struct SolverWorkloadStats;
+}
+
+static void ExportProfilingDataToCSV(
+	const std::string& file_name, std::uint32_t active_threads,
+	std::uint32_t iterations, const SolverWorkloadStats& work_load
+);
+
+static void ExportSortedLoadBalancingToCSV(
+	const std::string& file_name,
+	uint32 active_threads, uint32 iterations,
+	const vx::VelocitySolveProfile& profile,
+	uint32 max_concurrency);
+static void ExportSortedLoadBalancingToCSV(const std::string& file_name, const char* scene_name, const vx::VelocitySolveProfile& profile, uint32 max_concurrency);
+
+class ProfilingSession
+{
+public:
+	static constexpr const char* kParentFolder = "Profiling";
+
+	ProfilingSession()
+	{
+		MakeSessionName();
+	}
+	void EnsureSessionDir()
+	{
+		static bool created = false;
+		if (!created)
+		{
+			std::filesystem::create_directories(std::string(kParentFolder) + "/" + mSessionName);
+			created = true;
+		}
+	}
+
+	void ExportProfileDataCSV(const std::string& file_name,
+		std::uint32_t active_threads, std::uint32_t iterations, std::uint32_t constraint_count)
+	{
+		ExportProfilingDataToCSV(RelativeDir() + "/" + file_name + ".csv",
+			active_threads, iterations, constraint_count);
+	}
+
+	void ExportProfilingDataCSVWorkload(
+		const std::string& file_name, std::uint32_t active_threads,
+		std::uint32_t iterations, const SolverWorkloadStats& work_load
+	)
+	{
+		ExportProfilingDataToCSV(RelativeDir() + "/" + file_name + ".csv",
+			active_threads, iterations, work_load);
+	}
+
+	void ExportSortedLoadBalancingToCSVI(
+		const std::string& file_name,
+		uint32 active_threads, uint32 iterations,
+		const vx::VelocitySolveProfile& profile,
+		uint32 max_concurrency) 
+	{
+		ExportSortedLoadBalancingToCSV(
+			RelativeDir() + "/" + file_name + ".csv", active_threads,
+			iterations, profile, max_concurrency);
+	}
+
+	void ExportSortedLoadBalancingToCSVII(const std::string& file_name, const char* scene_name,
+		const vx::VelocitySolveProfile& profile, uint32 max_concurrency)
+	{
+		ExportSortedLoadBalancingToCSV(RelativeDir() + "/" + file_name + ".csv",
+			scene_name, profile, max_concurrency);
+	}
+
+
+	std::string RelativeDir()
+	{
+		EnsureSessionDir();
+		return std::string(kParentFolder) + "/" + mSessionName;
+	}
+private:
+	void MakeSessionName()
+	{
+		auto _now = std::chrono::system_clock::now();
+		std::time_t t = std::chrono::system_clock::to_time_t(_now);
+
+		std::tm time_info{};
+		localtime_s(&time_info, &t);
+
+		//"Session_22-11-26_2230"
+		char buff[16] = "Session_";
+		std::strftime(buff, sizeof(buff), "%d-%m-%Y_%H%M", &time_info);
+		mSessionName = std::string("Session_") + buff;
+	}
+	std::string mSessionName;
+};
+
+
+
 
 static void ExportProfilingDataToCSV(const std::string& file_name, std::uint32_t active_threads, std::uint32_t iterations, std::uint32_t constraint_count)
 {

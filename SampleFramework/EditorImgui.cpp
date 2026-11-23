@@ -27,6 +27,165 @@
 //
 //}
 
+vx::Colour EditorImGui::kAccent = vx::Colour(0.3f, 0.75f, 0.8f, 1.0f);
+vx::Colour EditorImGui::kSecondaryAccent = vx::Colour(.102f, .42f, .478f, 1.0f);
+ImGuiTreeNodeFlags EditorImGui::kTreeNodeFlags = ImGuiTreeNodeFlags_Framed;
+
+
+EditorImGui::ScopePushItemWidth::ScopePushItemWidth(float width)
+{
+	ImGui::PushItemWidth(width);
+}
+
+EditorImGui::ScopePushItemWidth::~ScopePushItemWidth()
+{
+	ImGui::PopItemWidth();
+}
+
+
+bool EditorImGui::SliderInt(const char* label, int* v, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
+{
+	ScopePushItemWidth size(kSliderWidth);
+	return ImGui::SliderScalar(label, ImGuiDataType_S32, v, &v_min, &v_max, format, flags);
+}
+
+bool EditorImGui::SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
+{
+	ScopePushItemWidth size(kSliderWidth);
+	return ImGui::SliderScalar(label, ImGuiDataType_Float, v, &v_min, &v_max, format, flags);
+}
+
+bool EditorImGui::DragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
+{
+	ScopePushItemWidth size(kSliderWidth);
+	return ImGui::DragScalar(label, ImGuiDataType_Float, v, v_speed, &v_min, &v_max, format, flags);
+}
+
+bool EditorImGui::DragInt(const char* label, int* v, float v_speed, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
+{
+	ScopePushItemWidth size(kSliderWidth);
+	return ImGui::DragScalar(label, ImGuiDataType_S32, v, v_speed, &v_min, &v_max, format, flags);
+}
+
+void EditorImGui::TextColoured(const Colour col, const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	vx::Vec4 c = col;
+	ImGui::TextColoredV(ImVec4(c[0], c[1], c[2], c[3]), fmt, args);
+	va_end(args);
+}
+
+void EditorImGui::TextColourWrapped(const vx::Colour col, const char* fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	ImGui::PushStyleColor(ImGuiCol_Text, col);
+	ImGui::TextWrappedV(fmt, args);
+	ImGui::PopStyleColor();
+	va_end(args);
+}
+
+void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, vx::Vec2& o_pos, vx::Vec2& o_size, 
+	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen)
+{
+	VX_ASSERT(!mFrameWorkableScreenSize.IsZero());
+
+	float frame_screen_width = mFrameWorkableScreenSize[0];
+	float frame_screen_height = mFrameWorkableScreenSize[1];
+
+
+	vx::Vec2 workable_pos_origin = vx::Vec2(0.0f, mFrameMenuItemY);//menu item y size 25
+	vx::Vec2 workable_win_size = vx::Vec2(frame_screen_width, frame_screen_height - mFrameMenuItemY);//menu item y size 25
+
+	//top left 
+	float screen_padding = 5.0f;
+
+	///test remove side paddingd 
+	workable_win_size -= vx::Vec2(2 * screen_padding);
+
+	max_ratio_screen = vx::Vec2::Clamp(max_ratio_screen, vx::Vec2::Zero(), vx::Vec2::One());
+
+	float panel_width = vx::VxMin(target_width, workable_win_size[0] * max_ratio_screen[0]);
+
+	float panel_height = vx::VxMin(target_height, workable_win_size[1] * max_ratio_screen[1]);
+
+	vx::Vec2 panel_size(panel_width, panel_height);;
+
+
+
+
+	vx::Vec2 pos_offset;
+	/// top right consider primary simulation panel
+	/// use the approraite corrd 
+	/// for this instamce top right 
+	/// then consider the appropriate panel 
+	vx::Vec2 target_panel_pos(1550.0f, 35.0f);//its top left
+	//pos_offset[0] -= vx::VxAbs(target_panel_pos[0] - frame_screen_width);
+
+	const bool consider_target_panel = true;
+
+	///for now, target panel is to the right (primary panel)
+	if (consider_target_panel)
+	{
+		frame_screen_width = vx::VxMin(target_panel_pos[0], frame_screen_width);
+
+	}
+
+	switch (screen_anchor)
+	{
+	case EPanelScreenAnchor::TopLeft:
+		pos_offset = vx::Vec2(screen_padding);
+		break;
+	case EPanelScreenAnchor::BottomLeft:
+	{
+		const float disp_alongY = (frame_screen_height - mFrameMenuItemY) +// move point downward along Y & consider the menu height size
+			-(screen_padding + panel_size[1]);///take into account the bottom padding and panel size
+		pos_offset = vx::Vec2(screen_padding, disp_alongY);
+	}
+	break;
+	case EPanelScreenAnchor::TopRight:
+	{
+		float disp_alongX = (frame_screen_width)+ // move point downward along X
+			-(screen_padding + panel_size[0]);///take into account the bottom padding and panel size
+		pos_offset = vx::Vec2(disp_alongX, screen_padding);
+	}
+	break;
+	case EPanelScreenAnchor::BottomRight:
+		vx::Vec2 disp = vx::Vec2(frame_screen_width, frame_screen_height - mFrameMenuItemY) - (vx::Vec2(screen_padding) + panel_size);
+		pos_offset = disp;
+		break;
+	}
+
+	vx::Vec2 panel_pos = workable_pos_origin + pos_offset;
+
+	o_pos = panel_pos;
+	o_size = panel_size;
+}
+
+bool EditorImGui::BeginPanel(const char* name, bool* p_open, ImGuiWindowFlags flags)
+{
+	return ImGui::Begin(name, p_open, flags);
+}
+
+bool EditorImGui::BeginPanel(const char* name, bool* p_open, float target_width, float target_height,
+	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen, ImGuiWindowFlags flags)
+{
+
+	vx::Vec2 pos;
+	vx::Vec2 size;
+	ResolvePanelPosSize(target_width, target_height, pos, size, screen_anchor, max_ratio_screen);
+	ImGui::SetNextWindowPos(ImVec2(pos[0], pos[1]), ImGuiCond_Appearing);
+	ImGui::SetNextWindowSize(ImVec2(size[0], size[1]), ImGuiCond_Appearing);
+
+	return ImGui::Begin(name, p_open, flags);
+}
+
+void EditorImGui::EndPanel()
+{
+	ImGui::End();
+}
+
 void EditorImGui::Initialise(GLFWwindow* glfw_win)
 {
 	IMGUI_CHECKVERSION();
@@ -34,16 +193,106 @@ void EditorImGui::Initialise(GLFWwindow* glfw_win)
 	ImGuiIO& io = ImGui::GetIO();
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
+
 	//ImGui Renderer
 	ImGui_ImplGlfw_InitForOpenGL(glfw_win, true);
 	ImGui_ImplOpenGL3_Init("#version 400");
 
 	io.Fonts->AddFontFromFileTTF("assets/fonts/Inter_18pt-Regular.ttf", 18.0f);
+
+
+	ImGuiStyle* style = &ImGui::GetStyle();
+	style->WindowRounding = 4.0f;
+	style->FrameRounding = 5.0f;
+	style->GrabRounding = 6.0f;
+
+	//style->ScaleAllSizes()
+
+	////Style 
+	style->WindowPadding = ImVec2(10.0f, 10.0f);
+	style->FramePadding = ImVec2(8.0f, 4.0f);
+	style->CellPadding = ImVec2(6.0f, 4.0f);
+	style->ItemSpacing = ImVec2(8.0f, 7.0f);
+	style->ItemInnerSpacing = ImVec2(7.0f, 4.0f);
+	style->IndentSpacing = 18.0f;
+	style->ScrollbarSize = 12.0f;
+	style->GrabMinSize = 10.0f;
+
+	style->WindowBorderSize = 1.0f;
+	style->FrameBorderSize = 0.0f;
+	style->PopupBorderSize = 1.0f;
+	style->TabBorderSize = 0.0f;
+	style->SeparatorTextBorderSize = 1.0f;
+
+	style->WindowRounding = 4.0f;
+	style->ChildRounding = 4.0f;
+	style->PopupRounding = 4.0f;
+	style->FrameRounding = 3.0f;
+	style->GrabRounding = 3.0f;
+	style->ScrollbarRounding = 3.0f;
+	style->TabRounding = 3.0f;
+
+	style->WindowTitleAlign = ImVec2(0.0f, 0.5f);
+
+
+
+
+	///COLOUR SCHEME
+	ImVec4* colours = style->Colors;
+
+	colours[ImGuiCol_WindowBg] = ImVec4(0.11f, 0.11f, 0.141f, 0.95);
+
+	colours[ImGuiCol_Border] = ImVec4(0.0, 0.0, 0.0, 0.55);
+
+	colours[ImGuiCol_FrameBg] = ImVec4(0.140f, 0.140f, 0.19f, 1.000f);
+	colours[ImGuiCol_FrameBgHovered] = ImVec4(.2, 0.2, 0.24, 1.000f);
+	colours[ImGuiCol_FrameBgActive] = ImVec4(.2, 0.28, 0.38, 1.0f);
+
+	colours[ImGuiCol_CheckMark] = ImVec4(0.3, 0.75, 0.8, 1.0);
+
+	colours[ImGuiCol_Button] = ImVec4(0.22f, 0.23f, 0.30f, 1.0f);
+	colours[ImGuiCol_ButtonHovered] = ImVec4(0.28f, 0.3f, 0.34f, 1.0f);
+	colours[ImGuiCol_ButtonActive] = ImVec4(0.0, 0.302f, 0.349f, 0.4f);
+
+
+	//colours[ImGuiCol_Header] = ImVec4(0.0, 0.3, 0.35, 0.4);
+	colours[ImGuiCol_Header] = ImVec4(0.24, 0.25, 0.35, 0.4);
+	colours[ImGuiCol_HeaderHovered] = ImVec4(.3, .32, .45, .8);
+	colours[ImGuiCol_HeaderActive] = ImVec4(.28, .38, .52, 1.0);
+
+
+	//colours[ImGuiCol_Tab] = ImVec4(0.0, 0.302, 0.349, 0.4);
+	colours[ImGuiCol_Tab] = ImVec4(0.16, .17, .2, 1.);
+	//colours[ImGuiCol_TabHovered] = ImVec4(0.251, 0.702, 0.702, 1.0);
+	colours[ImGuiCol_TabHovered] = ImVec4(.24, .26, .3, 1.0);
+	//colours[ImGuiCol_TabActive] = ImVec4(0.1, .42, 0.48, 1.0);
+	colours[ImGuiCol_TabActive] = ImVec4(.102, .42, .478, 1.0);
+
+
+	colours[ImGuiCol_SeparatorHovered] = ImVec4(0.25, 0.48, 0.62, 0.78);
+	colours[ImGuiCol_SeparatorActive] = ImVec4(0.25, 0.48, 0.62, 1.0);
+
+	colours[ImGuiCol_ResizeGrip] = ImVec4(0.25, 0.48, 0.62, 0.2);
+	colours[ImGuiCol_ResizeGripHovered] = ImVec4(0.25, 0.48, 0.62, 0.67);
+	colours[ImGuiCol_ResizeGripActive] = ImVec4(0.25, 0.48, 0.62, 0.95);
+
+	colours[ImGuiCol_SliderGrab] = ImVec4(.102, .42, .478, 1.0);
+	colours[ImGuiCol_SliderGrabActive] = ImVec4(0.302, .749, 0.8, 1.0);
+
+	colours[ImGuiCol_TitleBg] = ImVec4(0.11f, 0.11f, 0.141f, 0.95);
+	colours[ImGuiCol_TitleBgActive] = ImVec4(0.12f, 0.16f, 0.20f, 0.95);
+	colours[ImGuiCol_TitleBgCollapsed] = ImVec4(0.11f, 0.11f, 0.141f, 0.95);
+
+	colours[ImGuiCol_NavHighlight] = ImVec4(0.3, 0.75, 0.8, 1.0);
+
+	
 }
 
 
-void EditorImGui::BeginNewFrame()
+void EditorImGui::BeginNewFrame(float screen_width, float screen_height)
 {
+	mFrameWorkableScreenSize.SetXY(screen_width, screen_height);
+
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
@@ -73,6 +322,18 @@ bool EditorImGui::UIBlockingInput()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	return io.WantCaptureMouse || io.WantCaptureKeyboard;
+}
+
+bool EditorImGui::BeginMainMenu() const
+{
+	return ImGui::BeginMainMenuBar();
+}
+
+void EditorImGui::EndMainMenu()
+{
+	ImGui::EndMainMenuBar();
+	ImVec2 size = ImGui::GetItemRectSize();
+	mFrameMenuItemY = size.y;
 }
 
 void EditorImGui::DrawParticlesOverlayItems(std::vector<vx::Particles::Particle>& particles) const
@@ -551,9 +812,9 @@ bool EditorImGui::EditEulerWithDrag(vx::Vec3& euler, bool& editing, vx::Vec2& pa
 	else
 		editing = false;
 	ImGui::Text("Euler: %s", euler.ToString().c_str());
-	ImGui::DragFloat("Drag sensitivity", &drag_senstitivity, 0.05f);
+	DragFloat("Drag sensitivity", &drag_senstitivity, 0.05f);
 	//ImGui::DragFloat4("Quat", &quat[0], 0.01f);
-	ImGui::SliderInt("Drag Speed", &drag_speed, 1, 5);
+	SliderInt("Drag Speed", &drag_speed, 1, 5);
 	ImGui::DragFloat2("Pad Size", &pad_size[0], 0.1f);
 	ImGui::SetCursorScreenPos(ImVec2(min.x + drag_panel_size.x + 5.0f, min.y));
 	ImGui::Checkbox("Invert X", &invert_x);

@@ -13,6 +13,7 @@
 #include "Vortrix/Dynamics/IslandCoordinator.h"
 
 #include "Vortrix/PhysicsWorld.h"
+#include "Vortrix/Core/Colours.h"
 
 namespace vx {
 

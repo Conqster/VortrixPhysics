@@ -25,6 +25,9 @@ namespace vx
 		/// set y component
 		VX_INLINE void SetY(float v) { y = v; }
 
+		VX_INLINE void SetXY(float _x, float _y) { x = _x; y = _y; }
+
+
 		/// Component accessor by index
 		/// @param i Index (0 = x, 1 = y)
 		/// @return reference to component
@@ -173,6 +176,8 @@ namespace vx
 		VX_INLINE Vec2& operator*=(const float scalar);
 		/// divide vector with float
 		VX_INLINE Vec2 operator/(const float scalar) const;
+		/// divide float with the vector
+		VX_INLINE friend Vec2 operator/(const float lhs, const Vec2& rhs);
 		/// divide vector with float
 		VX_INLINE Vec2& operator/=(const float scalar);
 		/// unary negation
@@ -192,6 +197,7 @@ namespace vx
 			os << "Vec2(" << v.x << ", " << v.y << ")";
 			return os;
 		}
+
 
 #ifdef VX_SIMD_SSE
 		/// Store SIMD vector into this Vec2
