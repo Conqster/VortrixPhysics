@@ -1,4 +1,4 @@
-#include "PersistentContactScenario.h"
+#include "PointConstraintScenario.h"
 #include "Vortrix/PhysicsWorld.h"
 
 #include "Vortrix/Maths/ScalarMath.h"
@@ -14,7 +14,9 @@
 
 #include "Vortrix/Dynamics/Constraints/PointConstraint.h"
 
-void PersistentContactScenario::Init(vx::PhysicsWorld* i_world)
+#include "SampleFramework/EditorUI.h"
+
+void PointConstraintScenario::Init(vx::PhysicsWorld* i_world)
 {
 	Scenario::Init(i_world);
 
@@ -63,17 +65,11 @@ void PersistentContactScenario::Init(vx::PhysicsWorld* i_world)
 	point_constraint_setting.anchorA = vx::Vec3(0.0f, 1.1875f, 0.0f);
 	point_constraint_setting.anchorB = vx::Vec3(0.0f, -1.1875f, 0.0f);
 
-	//point_constraint_setting.enableVelocityBias = true;
-	//point_constraint_setting.errorTreshold = 1.0f;
-
-	////mNotInPipelineJoints.reserve(25);
-	//auto& phys_constraint_coord = mPhysicsWorld->mConstraintCoordinator;
-	//phys_constraint_coord->AddConstraintT(joint);
 
 	//maybe every frame update worldanhor
 	//mPhysicsWorld->mBallJoint = new vx::PointConstraint(&mPhysicsWorld->GetBodies()[0], &mPhysicsWorld->GetBodies()[1], point_constraint_setting);
-	mTestConstraint = new vx::PointConstraint(&mPhysicsWorld->Bodies()[0], &mPhysicsWorld->Bodies()[1], point_constraint_setting);
-	mPhysicsWorld->AddConstraint(mTestConstraint);
+	mConstraints.emplace_back(new vx::PointConstraint(&mPhysicsWorld->Bodies()[0], &mPhysicsWorld->Bodies()[1], point_constraint_setting));
+	//mPhysicsWorld->AddConstraint(mTestConstraint);
 
 	point_constraint_setting.anchorA = vx::Vec3(0.0f, 1.0f, 0.0f);
 	point_constraint_setting.anchorB = vx::Vec3(0.0f, -1.0f, 0.0f);
@@ -87,10 +83,10 @@ void PersistentContactScenario::Init(vx::PhysicsWorld* i_world)
 
 
 	mPhysicsWorld->CreateBody(dyn_bodies_settings);
-	vx::PointConstraint pt_constraint2 = vx::PointConstraint(&mPhysicsWorld->Bodies()[2], &mPhysicsWorld->Bodies()[3], point_constraint_setting);
+	mConstraints.emplace_back(new vx::PointConstraint(&mPhysicsWorld->Bodies()[2], &mPhysicsWorld->Bodies()[3], point_constraint_setting));
 
 	mPhysicsWorld->CreateBody(dyn_bodies_settings);
-	vx::PointConstraint pt_constraint3 = vx::PointConstraint(&mPhysicsWorld->Bodies()[1], &mPhysicsWorld->Bodies()[4], point_constraint_setting);
+	mConstraints.emplace_back(new vx::PointConstraint(&mPhysicsWorld->Bodies()[1], &mPhysicsWorld->Bodies()[4], point_constraint_setting));
 
 	//constraint between a cube and sphere 
 	dyn_bodies_settings.position += offset;
@@ -105,30 +101,27 @@ void PersistentContactScenario::Init(vx::PhysicsWorld* i_world)
 
 	
 
-	vx::PointConstraint pt_joints[3] = {
-		pt_constraint2,
-		pt_constraint3,
-		vx::PointConstraint((&mPhysicsWorld->Bodies().back())-1, &mPhysicsWorld->Bodies().back(), point_constraint_setting)
-	};
-	mPhysicsWorld->CreateConstraintsT(pt_joints, 3);
-
+	mConstraints.emplace_back(new vx::PointConstraint((&mPhysicsWorld->Bodies().back()) - 1, &mPhysicsWorld->Bodies().back(), point_constraint_setting));
+	
+	//mPhysicsWorld->CreateConstraintsT(pt_joints, 3);
+	mPhysicsWorld->AddConstraints(mConstraints.data(), mConstraints.size());
 
 	/// Ground plane
 	CreateGroundPlane(100.0f);
 }
 
-void PersistentContactScenario::PostPhysicsStep(float dt)
+void PointConstraintScenario::PostPhysicsStep(float dt)
 {
 	Scenario::PostPhysicsStep(dt);
 	//mPhysicsWorld->mBallJoint->ResolveOffset();
 }
 
-void PersistentContactScenario::OnClose()
+void PointConstraintScenario::OnClose()
 {
 	Scenario::OnClose();
 }
 
-PersistentContactScenario::~PersistentContactScenario()
+PointConstraintScenario::~PointConstraintScenario()
 {
 	Scenario::OnClose();
 	
@@ -137,7 +130,7 @@ PersistentContactScenario::~PersistentContactScenario()
 	//OnClose();
 }
 
-void PersistentContactScenario::OnUI()
+void PointConstraintScenario::OnUI()
 {
 	Scenario::OnUI();
 
@@ -148,24 +141,30 @@ void PersistentContactScenario::OnUI()
 	//contact contraints
 	auto& contact_constraint_stat = mPhysicsWorld->ContactConstraintSolverStats();
 
-	if (ImGui::Begin("PersistentContactScenario Window"))
+	if (mAppUI->BeginPanel("##PersistentContactScenario Window", nullptr,
+		500, 250, EditorUI::EPanelScreenAnchor::HackTopRightConsiderPrimaryPanel,
+		1.0f / vx::Vec2(3.0f, 3.0f), ImGuiWindowFlags_NoTitleBar))
 	{
+		EditorUI::TextColoured(EditorUI::kAccent, "PersistentContactScenario Window");
 		vx::StackString<32> text;
 		ImGui::Text("Last Step Bias: %s", text.Data());
 
-		if (mTestConstraint)
+		if (!mConstraints.empty())
 		{
-			ImGui::Text("Constraint Idx: %d", mTestConstraint->ConstraintIdx());
+			static int curr_idx = 0;
+			if (EditorUI::SliderInt("Constraint Idx", &curr_idx, 0, mConstraints.size()-1))
+				curr_idx = vx::VxClamp(curr_idx, 0, int(mConstraints.size()-1));
 			ImGui::SameLine();
-			if(mTestConstraint->ConstraintIdx() != vx::Constraint::kInvalidIdx)
+			auto* constraint = mConstraints[curr_idx];
+			if(constraint->ConstraintIdx() != vx::Constraint::kInvalidIdx)
 			{
 				if (ImGui::Button("Remove"))
-					mPhysicsWorld->RemoveConstraint(mTestConstraint);
+					mPhysicsWorld->RemoveConstraint(constraint);
 			}
 			else
 			{
 				if (ImGui::Button("Add"))
-					mPhysicsWorld->AddConstraint(mTestConstraint);
+					mPhysicsWorld->AddConstraint(constraint);
 			}
 		}
 
@@ -175,10 +174,6 @@ void PersistentContactScenario::OnUI()
 
 		ImGui::Text("Num of Persistent Point: %d", contact_constraint_stat.actualPointCounts);
 		ImGui::Text("Num of Valid Persistent Point: %d", contact_constraint_stat.actualPersistentPointCounts);
-
-		ImGui::Text("Total Nor Lambda: %f", contact_constraint_stat.totalNorLambda);
-		ImGui::Text("Total Tan Lambda: %f", contact_constraint_stat.totalTanLambda);
-		ImGui::Text("Total BiTan Lambda: %f", contact_constraint_stat.totalBiTanLambda);
 	}
 	ImGui::End();
 }

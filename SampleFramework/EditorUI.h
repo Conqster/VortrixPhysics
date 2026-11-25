@@ -34,10 +34,11 @@ namespace vx{
 typedef int ImGuiTreeNodeFlags;
 typedef int ImGuiSliderFlags;
 typedef int ImGuiWindowFlags;
+typedef int ImGuiCond;
 
 
-/// change EditorGUI/AppGUI
-class EditorImGui
+
+class EditorUI
 {
 public:
 	static vx::Colour kAccent;// = vx::Colour(0.3f, 0.75f, 0.8f, 1.0f);
@@ -81,6 +82,9 @@ public:
 		BottomLeft,
 		TopRight,
 		BottomRight,
+		Center,
+		
+		HackTopRightConsiderPrimaryPanel,
 	};
 
 	void ResolvePanelPosSize(float target_width, float target_height,
@@ -93,13 +97,26 @@ public:
 		EPanelScreenAnchor screen_anchor = EPanelScreenAnchor::TopLeft,
 		vx::Vec2 max_ratio_screen = vx::Vec2(1.0f / 4),
 		ImGuiWindowFlags flags = 0);
-
 	static void EndPanel();
+
+	bool BeginPrimaryPanel(const char* name, bool* p_open, float target_width, float target_height,
+		EPanelScreenAnchor screen_anchor = EPanelScreenAnchor::TopLeft,
+		vx::Vec2 max_ratio_screen = vx::Vec2(1.0f / 4),
+		ImGuiWindowFlags flags = 0);
+
+	bool BeginPanel_Cond(const char* name, bool* p_open, float target_width, float target_height,
+		EPanelScreenAnchor screen_anchor = EPanelScreenAnchor::TopLeft,
+		vx::Vec2 max_ratio_screen = vx::Vec2(1.0f / 4),
+		ImGuiWindowFlags flags = 0, ImGuiCond cond = 0);
+	 void EndPrimaryPanel();
 
 
 	/// intermidate values
 	vx::Vec2 mFrameWorkableScreenSize = vx::Vec2(0);
 	float mFrameMenuItemY = 25.0f;
+	bool mBeginPrimaryPanel = false;
+	vx::Vec2 mFramePrimaryPanelSize = vx::Vec2(0);
+	vx::Vec2 mFramePrimaryPanelPos = vx::Vec2(0);
 
 	void Initialise(GLFWwindow* glfw_win);
 	void BeginNewFrame(float screen_width, float screen_height);
@@ -116,12 +133,13 @@ public:
 
 	void DrawParticlesOverlayItems(std::vector<vx::Particles::Particle>& particles) const;
 
-	void DrawBodyOverlayDetails(vx::BodyID body_id, vx::PhysicsWorld* physics_world);
+	/// when the body is delete the body_id becomes invalid
+	void DrawBodyOverlayDetails(vx::BodyID& body_id, vx::PhysicsWorld* physics_world);
 	void DrawBodiesOverlayItems(vx::BodyManager& body_manager, vx::PhysicsWorld* physics_world);
 	void DrawConstraintsOverlayItems(vx::BodyManager& body_manager, std::vector<vx::Constraint*>& constraints);
 
 
-	static void HelpInformation(const char* desc);
+	static void HelpInformation(const char* desc, bool show_icon = true);
 
 	static bool EditQuatWithDrag(vx::Quat& quat, bool& editing,
 		vx::Vec2& pad_size);
@@ -151,7 +169,8 @@ private:
 	static bool DrawAllowedDofFlags(vx::EDynamicsDofs& flags);
 
 	template<vx::EMotionType Type>
-	void DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body_debug_info);
+	//void DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body_debug_info);
+	void DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyManager* body_manager);
 	void DrawDistanceConstraintOverlayUniqueProps(vx::DistanceConstraint& constraint);
 	void DrawPointConstraintOverlayUniqueProps(vx::PointConstraint& constraint);
 };

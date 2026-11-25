@@ -11,7 +11,7 @@
 
 #include "EDynamicsDofs.h"
 
-class EditorImGui;
+class EditorUI;
 namespace vx
 {
 	class Shape;
@@ -22,6 +22,20 @@ namespace vx
 		//Kinematic = 1,	//infinte mass to dynamic object, move via external forces
 		Dynamic = 2,	// full physics dynamics
 	};
+	//constexpr const char* MotionTypeNames = 
+	//	"Static\0"
+	//	"Kinematic\0"
+	//	"Dynamic\0"
+	//	"\0";
+
+
+	inline const char* MotionTypeNames(EMotionType Type)
+	{
+		if (Type == EMotionType::Static) return "Static";
+		else if (Type == EMotionType::Dynamic) return "Dynamic";
+		else return "Unknown";
+	}
+
 
 	/// use data to create unique key with data over compare even element, 
 	struct BodySettings
@@ -270,7 +284,8 @@ namespace vx
 		/// hack for capsule as most shapes like sphere as a unified size on xyz similar to unit box
 		/// but capsule is more close to a compound shape were y is usually twice xz (0.5, 1.0, 0.5)
 	
-
+		/// to wake up body use body manager to wake body, in order
+		/// to activate body list
 		void WakeUp(bool reset_timer = true)
 		{
 			mAwake = (mMotionType != EMotionType::Static) ? true : false;
@@ -281,6 +296,7 @@ namespace vx
 			WakeUp();
 			ApplyImpulse(jolt);
 		}
+
 		void UpdateSleepState(float dt, const SleepingSettings& settings);
 
 		//for debugging
@@ -476,6 +492,6 @@ namespace vx
 
 		
 		friend class BodyManager;
-		friend EditorImGui;
+		friend EditorUI;
 	};
 } //namespace vx

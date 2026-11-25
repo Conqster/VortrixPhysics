@@ -12,6 +12,11 @@
 #include "Vortrix/Dynamics/Constraints/DistanceConstraint.h"
 #include "Vortrix/Dynamics/ConstraintCoordinator.h"
 
+#include "SampleFramework/EditorUI.h"
+#include "SampleFramework/Display/ApplicationWindow.h"
+
+#include <external/imgui/imgui.h>
+
 void RopeSetting(vx::DistanceConstraintSettings& constraint_settings)
 {
 	constraint_settings.minDist = 1.25f;
@@ -236,8 +241,12 @@ void JointScenario::OnUI()
 	if (mPhysicsWorld->NonContactConstraints().empty())
 		return;
 
-	if (ImGui::Begin("Joint Window"))
+	if (mAppUI->BeginPanel("##JointWin", nullptr, 
+		500.0f, float(mAppWindow->Height()),
+		EditorUI::EPanelScreenAnchor::TopLeft, vx::Vec2(0.25f, 1.0f), 
+		ImGuiWindowFlags_NoTitleBar))
 	{
+		EditorUI::TextColoured(EditorUI::kAccent, "Joint Window");
 		static bool use_new = true;
 
 		//if (use_new)

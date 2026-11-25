@@ -21,7 +21,7 @@ static void ExportProfilingDataToCSV(
 	std::uint32_t iterations, const SolverWorkloadStats& work_load
 );
 
-static void ExportSortedLoadBalancingToCSV(
+static void ExportSolverLoadBalancingCSV(
 	const std::string& file_name,
 	uint32 active_threads, uint32 iterations,
 	const vx::VelocitySolveProfile& profile,
@@ -50,11 +50,12 @@ public:
 	void ExportProfileDataCSV(const std::string& file_name,
 		std::uint32_t active_threads, std::uint32_t iterations, std::uint32_t constraint_count)
 	{
+		//EnsureSessionDir();
 		ExportProfilingDataToCSV(RelativeDir() + "/" + file_name + ".csv",
 			active_threads, iterations, constraint_count);
 	}
 
-	void ExportProfilingDataCSVWorkload(
+	void ExportSolverWorkloadCSV(
 		const std::string& file_name, std::uint32_t active_threads,
 		std::uint32_t iterations, const SolverWorkloadStats& work_load
 	)
@@ -63,13 +64,13 @@ public:
 			active_threads, iterations, work_load);
 	}
 
-	void ExportSortedLoadBalancingToCSVI(
+	void ExportSolverLoadBalancingCSV(
 		const std::string& file_name,
 		uint32 active_threads, uint32 iterations,
 		const vx::VelocitySolveProfile& profile,
 		uint32 max_concurrency) 
 	{
-		ExportSortedLoadBalancingToCSV(
+		::ExportSolverLoadBalancingCSV(
 			RelativeDir() + "/" + file_name + ".csv", active_threads,
 			iterations, profile, max_concurrency);
 	}
@@ -81,6 +82,12 @@ public:
 			scene_name, profile, max_concurrency);
 	}
 
+	void WriteNote(const std::string& file_name, const std::string& note)
+	{
+		VX_ASSERT_WARN_RETURN(!file_name.empty() && !note.empty());
+		std::ofstream file(RelativeDir() + "/" + file_name + ".txt");
+		file << note;
+	}
 
 	std::string RelativeDir()
 	{
@@ -354,7 +361,7 @@ static void ExportProfilingDataToCSV(
 
 
 
-static void ExportSortedLoadBalancingToCSV(
+static void ExportSolverLoadBalancingCSV(
 	const std::string& file_name,
 	uint32 active_threads, uint32 iterations,
 	const vx::VelocitySolveProfile& profile,

@@ -48,7 +48,7 @@
 #include "SampleFramework/Scenarios/JengaScenario.h"
 #include "SampleFramework/Scenarios/WorldQueriesScenario.h"
 #include "SampleFramework/Scenarios/JointScenario.h"
-#include "SampleFramework/Scenarios/PersistentContactScenario.h"
+#include "SampleFramework/Scenarios/PointConstraintScenario.h"
 #include "SampleFramework/Scenarios/RagdollScenario.h"
 #include "SampleFramework/Scenarios/EmptyScenario.h"
 #include "SampleFramework/Scenarios/RandomSpreadBodiesScenario.h"
@@ -80,7 +80,7 @@ Application* CreateApplication(const ApplicationSpecification& app_spec)
 //template<typename Enum>
 //bool UICombo(const char* label, Enum& value, const char* items_separated_by_zeros, int height_in_items = -1)
 //{
-//	EditorImGui::Combo(label, value, items_separated_by_zeros, height_in_items);
+//	EditorUI::Combo(label, value, items_separated_by_zeros, height_in_items);
 //}
 
 using namespace InputSystem;
@@ -91,7 +91,7 @@ using namespace vx;
 
 void Application::LoadScenarioWindow()
 {
-	if (ImGui::Begin("Load Scenario From Disk", &mPhysicsImGuiWindows.loadScenarioWindow))
+	if (ImGui::Begin("Load Scenario From Disk", &mPhysicsUIPanels.loadScenarioWindow))
 	{
 		const char* dir = serialiser::defaulfDirectory;
 		ImGui::Text("%s", dir);
@@ -103,44 +103,39 @@ void Application::LoadScenarioWindow()
 		static vx::StackString<32> selected("");
 		if (ImGui::BeginTable("table0", 1, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 		{
-			for (auto& entry : std::filesystem::directory_iterator(dir_path))
+			try
 			{
-				if (!entry.is_regular_file() && entry.path().extension() != ".json")
-					continue;
-
-				ImGui::PushID(entry.path().c_str());
-
-				ImGui::TableNextRow();
-				ImGui::TableSetColumnIndex(0);
-
-				vx::StackString<32> name;
-				name << entry.path().filename().string().c_str();
-
-				if (ImGui::Selectable(name.Data(), selected.Data() == name.Data(), ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
+				for (auto& entry : std::filesystem::directory_iterator(dir_path))
 				{
-					selected.Clear();
-					selected << entry.path().filename().string().c_str();
-				}
+					if (!entry.is_regular_file() && entry.path().extension() != ".json")
+						continue;
 
-				if (ImGui::IsItemHovered())
-				{
-					hover.Clear();
-					hover << entry.path().filename().string().c_str();
-				}
-				ImGui::PopID();
-				//{
-				//	float x0 = ImGui::GetCursorPosX();
-				//	float y0 = ImGui::GetCursorPosY();
-				//	ImGui::Text("%s", name.Data());
+					ImGui::PushID(entry.path().c_str());
 
-				//	ImGui::SetCursorPos(ImVec2(x0, y0));
-				//	//float y0 = ImGui::GetCursorPosY();
-				//	//ImGui::SameLine();
-				//	//if (ImGui::Button("##", ImVec2(ImGui::GetCursorPosX() - x0, ImGui::GetItemRectSize().y)))
-				//	if (ImGui::Button("##"))//, ImVec2(ImGui::GetWindowSize().x, ImGui::GetItemRectSize().y)))
-				//	{
-				//	}
-				//}
+					ImGui::TableNextRow();
+					ImGui::TableSetColumnIndex(0);
+
+					vx::StackString<32> name;
+					name << entry.path().filename().string().c_str();
+
+					if (ImGui::Selectable(name.Data(), selected.Data() == name.Data(), ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
+					{
+						selected.Clear();
+						selected << entry.path().filename().string().c_str();
+					}
+
+					if (ImGui::IsItemHovered())
+					{
+						hover.Clear();
+						hover << entry.path().filename().string().c_str();
+					}
+					ImGui::PopID();
+				}
+			}
+			catch(std::exception& e)
+			{
+				EditorUI::TextColoured(vx::Colour::sRed, e.what());
+				VX_LOG_WARN(e.what());
 			}
 
 			ImGui::EndTable();
@@ -178,117 +173,111 @@ void Application::LoadScenarioWindow()
 	ImGui::End();
 }
 
-void Application::ScenarioInspectionWindow()
+void Application::ScenariosInspectionPanel_Details()
 {
-	if (ImGui::Begin("Scenario Inspection", &mPhysicsImGuiWindows.scenarioWindowManagement))
+
+	if (mCurrScenario)
 	{
-		if (mCurrScenario)
+		EditorUI::TextColoured(EditorUI::kAccent, "Scene: %s", mCurrScenario->Name());
+		ImGui::Text("Info: %s", mCurrScenario->Info());
+
+		bool base_scenario_mouse_cast = mCurrScenario->GetAllowBaseScenarioMouseCast();
+		if (ImGui::Checkbox("Allow base scenario mouse cast", &base_scenario_mouse_cast))
+			mCurrScenario->SetAllowBaseScenarioMouseCast(base_scenario_mouse_cast);
+		ImGui::Checkbox("Use physics constraint for interaction", &mCurrScenario->UsePhysicsConstraintForInteraction());
+	}
+	else
+		ImGui::TextColored(ImVec4(1, 0, 0, 1), "No Active Scenario");
+
+	if (ImGui::Button("Load from disk"))
+		mPhysicsUIPanels.loadScenarioWindow = true;
+
+	ImGui::SeparatorText("Run All Scenarios");
+
+	EditorUI::SliderFloat("Run scenario duration", &mRunningScenarioDuration, 0.1f, 10.0f);
+	ImGui::Text("Current: %f", mCurrentScenarioDuration);
+	static int triggered_count = 0;
+	int ran = vx::VxMax(int(triggered_count-mPendingRunScenarios.size()), 0);
+	ImGui::Text("Running: %d of %d", ran, triggered_count);
+	ImGui::Text("Pending Count: %d", int(mPendingRunScenarios.size()));
+	//bool run_all = false;
+	if (ImGui::Button("Run All"))
+	{
+		//loop through scenarios
+		std::vector<ScenarioCatergory*> _catergories;
+		_catergories.push_back(&mScenarioCatergoies);
+		while (!_catergories.empty())
 		{
-			ImGui::Text("Scene: %s", mCurrScenario->Name());
-			ImGui::Text("Info: %s", mCurrScenario->Info());
+			ScenarioCatergory* c = _catergories.front();
+			for (auto& _c : c->catergories)
+				_catergories.push_back(&_c);
 
-			bool base_scenario_mouse_cast = mCurrScenario->GetAllowBaseScenarioMouseCast();
-			if (ImGui::Checkbox("Allow base scenario mouse cast", &base_scenario_mouse_cast))
-				mCurrScenario->SetAllowBaseScenarioMouseCast(base_scenario_mouse_cast);
-			ImGui::Checkbox("Use physics constraint for interaction", &mCurrScenario->UsePhysicsConstraintForInteraction());
-		}
-		else
-			ImGui::TextColored(ImVec4(1, 0, 0, 1), "No Active Scenario");
+			for (auto& s : c->scenarios)
+				mPendingRunScenarios.push_back(s.get());
 
-		ImGui::Spacing();
-		if (ImGui::Button("Load from disk"))
-			mPhysicsImGuiWindows.loadScenarioWindow = true;
-
-		ImGui::Spacing();
-		ImGui::SeparatorText("Run All Scenarios");
-
-		ImGui::SliderFloat("Run scenario duration", &mRunningScenarioDuration, 0.1f, 10.0f);
-		ImGui::Text("Current: %f", mCurrentScenarioDuration);
-		static int triggered_count = 0;
-		int ran = vx::VxMax(int(triggered_count-mPendingRunScenarios.size()), 0);
-		ImGui::Text("Running: %d of %d", ran, triggered_count);
-		ImGui::Text("Pending Count: %d", int(mPendingRunScenarios.size()));
-		//bool run_all = false;
-		if (ImGui::Button("Run All"))
-		{
-			//loop through scenarios
-			std::vector<ScenarioCatergory*> _catergories;
-			_catergories.push_back(&mScenarioCatergoies);
-			while (!_catergories.empty())
-			{
-				ScenarioCatergory* c = _catergories.front();
-				for (auto& _c : c->catergories)
-					_catergories.push_back(&_c);
-
-				for (auto& s : c->scenarios)
-					mPendingRunScenarios.push_back(s.get());
-
-				//swap to back then pop
-				std::swap(_catergories.front(), _catergories.back());
-				_catergories.pop_back();
-			}
-
-			mCurrentScenarioDuration = mRunningScenarioDuration + 0.1f;
-			triggered_count = mPendingRunScenarios.size();
+			//swap to back then pop
+			std::swap(_catergories.front(), _catergories.back());
+			_catergories.pop_back();
 		}
 
+		mCurrentScenarioDuration = mRunningScenarioDuration + 0.1f;
+		triggered_count = mPendingRunScenarios.size();
+		mPhysicsAppSetting.Pause(false);
+	}
 
-		ImGui::Separator();
-		if (ImGui::TreeNode("Save Scenario"))
+	if (ImGui::TreeNodeEx("Save Scenario", EditorUI::kTreeNodeFlags))
+	{
+		int _max_bodies, _max_body_pairs, _max_constact_constraints;
+		PhysicsWorld::GenerateWorldDefaultConfig(_max_bodies, _max_body_pairs, _max_constact_constraints);
+
+		int avg_max_body_pair = 8, avg_contact_per_body = 4;
+		static bool use_def_phy_config = true;
+		ImGui::Checkbox("Use Default Physics Config", &use_def_phy_config);
+		ImGui::DragInt("Max Bodies", &_max_bodies);
+		ImGui::DragInt("Avr Max Body Pair", &avg_max_body_pair);
+		ImGui::DragInt("Avr Contact Per Body", &avg_contact_per_body);
+		static char scenario_name[64] = "New Scenario v1";
+		ImGui::InputText("Name", &scenario_name[0], sizeof(char) * 64);
+
+		static bool use_default_dir = true;
+		if (use_default_dir)
 		{
-			int _max_bodies, _max_body_pairs, _max_constact_constraints;
-			PhysicsWorld::GenerateWorldDefaultConfig(_max_bodies, _max_body_pairs, _max_constact_constraints);
-
-			int avg_max_body_pair = 8, avg_contact_per_body = 4;
-			static bool use_def_phy_config = true;
-			ImGui::Checkbox("Use Default Physics Config", &use_def_phy_config);
-			ImGui::DragInt("Max Bodies", &_max_bodies);
-			ImGui::DragInt("Avr Max Body Pair", &avg_max_body_pair);
-			ImGui::DragInt("Avr Contact Per Body", &avg_contact_per_body);
-			static char scenario_name[64] = "New Scenario v1";
-			ImGui::InputText("Name", &scenario_name[0], sizeof(char) * 64);
-
-			static bool use_default_dir = true;
-			if (use_default_dir)
+			serialiser::directory.Clear();
+			serialiser::directory << serialiser::defaulfDirectory;
+			if (ImGui::InputText("Directory", serialiser::directory.BufferHead(), sizeof(char) * serialiser::directory.Capacity()))
 			{
 				serialiser::directory.Clear();
 				serialiser::directory << serialiser::defaulfDirectory;
-				if (ImGui::InputText("Directory", serialiser::directory.BufferHead(), sizeof(char) * serialiser::directory.Capacity()))
-				{
-					serialiser::directory.Clear();
-					serialiser::directory << serialiser::defaulfDirectory;
-				}
 			}
-			else
-				ImGui::InputText("Directory", serialiser::directory.BufferHead(), sizeof(char) * serialiser::directory.Capacity());
-
-			ImGui::SameLine(); ImGui::Checkbox("Default Dir", &use_default_dir);
-
-			if (mCurrScenario && mPhysicsWorld)
-			{
-				if (ImGui::Button((vx::StackString<56>("Save: ") << scenario_name).Data()))
-				{
-					serialiser::Serialise(&mPhysicsWorld->GetBodyManager(), mCamera, scenario_name, serialiser::directory.Data(), "information", mCurrScenario);
-				}
-			}
-			else
-				ImGui::TextColored(ImVec4(1, 0, 0, 1), "No Active Scenario or physics world");
-
-			//if (ImGui::Button("Print name"))
-			//{
-			//	vx::StackString<64> _name;
-			//	_name << scenario_name;
-			//	VX_LOG_INFO("Name test: ", _name);
-			//}
-			ImGui::TreePop();
 		}
+		else
+			ImGui::InputText("Directory", serialiser::directory.BufferHead(), sizeof(char) * serialiser::directory.Capacity());
+
+		ImGui::SameLine(); ImGui::Checkbox("Default Dir", &use_default_dir);
+
+		if (mCurrScenario && mPhysicsWorld)
+		{
+			if (ImGui::Button((vx::StackString<56>("Save: ") << scenario_name).Data()))
+			{
+				serialiser::Serialise(&mPhysicsWorld->GetBodyManager(), mCamera, scenario_name, serialiser::directory.Data(), "information", mCurrScenario);
+			}
+		}
+		else
+			ImGui::TextColored(ImVec4(1, 0, 0, 1), "No Active Scenario or physics world");
+
+		//if (ImGui::Button("Print name"))
+		//{
+		//	vx::StackString<64> _name;
+		//	_name << scenario_name;
+		//	VX_LOG_INFO("Name test: ", _name);
+		//}
+		ImGui::TreePop();
 	}
-	ImGui::End();
 }
 
 void Application::ProgramWindowStateInfoWindow()
 {
-	if (ImGui::Begin("Program Window State Window", &mPhysicsImGuiWindows.programWindowStateInfoWindow))
+	if (ImGui::Begin("Program Window State Window", &mPhysicsUIPanels.programWindowStateInfoWindow))
 	{
 		ImGui::Text("Window Name: %s", mWindow.FullTitle());
 		ImGui::Text("Width: %u, Height: %u.\nAspect Ratio: %f",
@@ -325,32 +314,33 @@ void Application::DebugDrawWindow(bool* p_open)
 	{
 		auto& phy_settings = *mPhysicsWorld->Settings();
 		vx::DrawSettings& draw_settings = *phy_settings.drawSettings;
-		if (ImGui::TreeNodeEx("Body", EditorImGui::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
+		if (ImGui::TreeNodeEx("Body", EditorUI::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
 		{
-			EditorImGui::Combo("Body Colour mode", draw_settings.bodyColourMode, vx::BodyColourModeLabels);
+			EditorUI::Combo("Body Colour mode", draw_settings.bodyColourMode, vx::BodyColourModeLabels);
 			ImGui::Checkbox("draw AABB", &draw_settings.drawAABB);
 			ImGui::Checkbox("draw OBB", &draw_settings.drawOBB);
 			ImGui::Checkbox("draw Bodies as Solid Mesh", &draw_settings.drawBodiesAsSolid);
-			EditorImGui::SliderFloat("bodies draw Colour Alpha", &draw_settings.bodiesDrawColourAlpha, 0.0f, 1.0f);
+			EditorUI::SliderFloat("bodies draw Colour Alpha", &draw_settings.bodiesDrawColourAlpha, 0.0f, 1.0f);
 			ImGui::Checkbox("draw Bodies Principal Axes", &draw_settings.drawBodiesPrincipalAxes);
-			ImGui::Checkbox("draw Bodies Debug Inertia", &draw_settings.drawDebugInertia);
+			ImGui::Checkbox("draw Bodies Inertia & Momentum", &draw_settings.drawDebugInertia);
+			EditorUI::HelpInformation("Principal axes, equilvalent inertia box, angular momentum (L) and velocity (w) vectors");
 			ImGui::Checkbox("draw Bodies Motion Velocity", &draw_settings.drawBodiesVelocities);
 			ImGui::Checkbox("draw Bodies Mass Text", &draw_settings.drawBodiesMassText);
 			ImGui::Checkbox("draw Shape corners", &draw_settings.drawShapeOrientedBoundCorners);
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("World Query", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("World Query", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("draw Broadphase Walked Nodes", &draw_settings.drawWalkedTreeQuery);
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("Non Contact Constraint", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Non Contact Constraint", EditorUI::kTreeNodeFlags))
 		{
 			NonContactConstraintDrawSettings& constraint_draw = draw_settings.nonContactConstraintDrawSettings;
 			ImGui::Checkbox("draw constraints", &constraint_draw.drawConstraints);
-			EditorImGui::SliderFloat("draw anchor size", &constraint_draw.anchorSize, 0.01f, 2.0f);
+			EditorUI::SliderFloat("draw anchor size", &constraint_draw.anchorSize, 0.01f, 2.0f);
 			ImGui::Checkbox("draw constraint bounds", &constraint_draw.drawConstraintBounds);
 			ImGui::Checkbox("draw active bounds", &constraint_draw.drawActiveBounds);
 			ImGui::Checkbox("draw velocity solve bounds", &constraint_draw.drawVelocitySolveBounds);
@@ -358,7 +348,7 @@ void Application::DebugDrawWindow(bool* p_open)
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("Broadphase", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Broadphase", EditorUI::kTreeNodeFlags))
 		{
 			bool _flag = vx::Contains(draw_settings.braodphaseFlags, vx::EBroadphaseDrawFlag::LeafNodes) &&
 				vx::Contains(draw_settings.braodphaseFlags, vx::EBroadphaseDrawFlag::InternalNodes);
@@ -371,66 +361,66 @@ void Application::DebugDrawWindow(bool* p_open)
 		}
 
 
-		if (ImGui::TreeNodeEx("Narrowphase", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Narrowphase", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("draw Contacts", &draw_settings.drawContacts);
 			ImGui::Checkbox("draw Contacts poitn pentration text", &draw_settings.drawPenetrationText);
-			ImGui::SameLine(); EditorImGui::SliderFloat("contact size", &draw_settings.drawContactPointSize, 0.01f, 1.5f, "%.2f");
+			ImGui::SameLine(); EditorUI::SliderFloat("contact size", &draw_settings.drawContactPointSize, 0.01f, 1.5f, "%.2f");
 			ImGui::Checkbox("draw Contacts Normals", &draw_settings.drawContactsNormals);
 			ImGui::Checkbox("draw Contacts Normals With Penetration", &draw_settings.drawContactsNormalsWithPeneration);
 			ImGui::Checkbox("draw Contacts Scale Normal Penetration", &draw_settings.drawContactsScaleNormalPeneration);
 			if (draw_settings.drawContactsScaleNormalPeneration)
 			{
 				ImGui::SameLine();
-				EditorImGui::SliderFloat("scale", &draw_settings.drawContactNormalSize, 0.5f, 5.0f, "%.2f");
+				EditorUI::SliderFloat("scale", &draw_settings.drawContactNormalSize, 0.5f, 5.0f, "%.2f");
 			}
 			ImGui::Checkbox("Draw Colliding Pair Ref And Inc", &draw_settings.drawCollidingPairRefAndInc);
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("Solver", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Solver", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("draw Contact Constraint Solver TBNs", &draw_settings.drawContactConstraintSolverTBNs);
 			ImGui::Checkbox("draw Contact Constraint TBNs with Depth", &draw_settings.scaleAxesWithDepth);
-			EditorImGui::DragFloat("TBN Scale", &draw_settings.drawContactConstraintSolverTBNsScale, 0.01f);
+			EditorUI::DragFloat("TBN Scale", &draw_settings.drawContactConstraintSolverTBNsScale, 0.01f);
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("Island", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Island", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("Draw Per Island Constraint Group", &draw_settings.drawPerIslandConstraintGroup);
 			ImGui::Checkbox("Draw Per Island Constraint Group with Point", &draw_settings.drawPerIslandConstraintGroupPoint);
 			ImGui::Checkbox("Draw Per Island Constraint Group with Plane", &draw_settings.drawPerIslandConstraintGroupPlane);
 			ImGui::Checkbox("Draw Per Island Constraint Group Point as Wireframe", &draw_settings.drawPerIslandConstraintGroupPointAsWireframe);
-			EditorImGui::SliderFloat("Draw Per Island Constraint Group Point Size", &draw_settings.drawPerIslandConstraintGroupPointSize, 0.01f, 4.0f);
-			EditorImGui::SliderFloat("Draw Per Island Constraint Group Alpha ratio", &draw_settings.drawPerIslandConstraintGroupColourAlpha, 0.0f, 1.0f);
+			EditorUI::SliderFloat("Draw Per Island Constraint Group Point Size", &draw_settings.drawPerIslandConstraintGroupPointSize, 0.01f, 4.0f);
+			EditorUI::SliderFloat("Draw Per Island Constraint Group Alpha ratio", &draw_settings.drawPerIslandConstraintGroupColourAlpha, 0.0f, 1.0f);
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("COLOUR SCHEME", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("COLOUR SCHEME", EditorUI::kTreeNodeFlags))
 		{
-			EditorImGui::ColourEdit4("Dynamic Colour", draw_settings.dynamicColour);
-			EditorImGui::ColourEdit4("Static Colour", draw_settings.staticColour);
-			EditorImGui::ColourEdit4("Sleeping Colour", draw_settings.sleepingColour);
-			EditorImGui::ColourEdit4("Ground Colour", draw_settings.groundColour);
-			EditorImGui::ColourEdit3("Colliding pair Ref Colour", draw_settings.collidingPairRefColour);
-			EditorImGui::ColourEdit3("Colliding pair Inc Colour", draw_settings.collidingPairIncColour);
-			EditorImGui::ColourEdit3("Contact Colour", draw_settings.contactColour);
-			EditorImGui::ColourEdit3("Contact Wire Colour", draw_settings.contactWireColour);
-			EditorImGui::ColourEdit3("Contact point colour", draw_settings.drawContactPointColour);
-			EditorImGui::ColourEdit3("Contact normal colour", draw_settings.drawContactNormalsColour);
-			EditorImGui::ColourEdit3("Shape corners colour", draw_settings.drawShapeCornersColour);
-			EditorImGui::ColourEdit3("Body Debug Inertia colour", draw_settings.drawDebugInertiaColour);
+			EditorUI::ColourEdit4("Dynamic Colour", draw_settings.dynamicColour);
+			EditorUI::ColourEdit4("Static Colour", draw_settings.staticColour);
+			EditorUI::ColourEdit4("Sleeping Colour", draw_settings.sleepingColour);
+			EditorUI::ColourEdit4("Ground Colour", draw_settings.groundColour);
+			EditorUI::ColourEdit3("Colliding pair Ref Colour", draw_settings.collidingPairRefColour);
+			EditorUI::ColourEdit3("Colliding pair Inc Colour", draw_settings.collidingPairIncColour);
+			EditorUI::ColourEdit3("Contact Colour", draw_settings.contactColour);
+			EditorUI::ColourEdit3("Contact Wire Colour", draw_settings.contactWireColour);
+			EditorUI::ColourEdit3("Contact point colour", draw_settings.drawContactPointColour);
+			EditorUI::ColourEdit3("Contact normal colour", draw_settings.drawContactNormalsColour);
+			EditorUI::ColourEdit3("Shape corners colour", draw_settings.drawShapeCornersColour);
+			EditorUI::ColourEdit3("Body Debug Inertia colour", draw_settings.drawDebugInertiaColour);
 
-			EditorImGui::ColourEdit3("Shape Collider Wire Colour", draw_settings.shapeColliderWireColour);
-			EditorImGui::ColourEdit3("AABB Colour", draw_settings.aabbColour);
-			EditorImGui::ColourEdit3("bvh Node Colour", draw_settings.bvhNodeColour);
-			EditorImGui::ColourEdit3("Dynamic-Static Collision", draw_settings.dynamicStaticCollisionColour);
-			EditorImGui::ColourEdit3("Narrow phase Collision", draw_settings.narrowPhaseColour);
-			EditorImGui::ColourEdit3("Broad phase Collision", draw_settings.broadPhaseColour);
-			EditorImGui::ColourEdit3("Neural Collision", draw_settings.neuralPhaseColour);
-			EditorImGui::ColourEdit3("Linear Velocity Draw Colour", draw_settings.bodyLinearVelocityCol);
-			EditorImGui::ColourEdit3("Angular Velocity Draw Colour", draw_settings.bodyAngularVelocityCol);
+			EditorUI::ColourEdit3("Shape Collider Wire Colour", draw_settings.shapeColliderWireColour);
+			EditorUI::ColourEdit3("AABB Colour", draw_settings.aabbColour);
+			EditorUI::ColourEdit3("bvh Node Colour", draw_settings.bvhNodeColour);
+			EditorUI::ColourEdit3("Dynamic-Static Collision", draw_settings.dynamicStaticCollisionColour);
+			EditorUI::ColourEdit3("Narrow phase Collision", draw_settings.narrowPhaseColour);
+			EditorUI::ColourEdit3("Broad phase Collision", draw_settings.broadPhaseColour);
+			EditorUI::ColourEdit3("Neural Collision", draw_settings.neuralPhaseColour);
+			EditorUI::ColourEdit3("Linear Velocity Draw Colour", draw_settings.bodyLinearVelocityCol);
+			EditorUI::ColourEdit3("Angular Velocity Draw Colour", draw_settings.bodyAngularVelocityCol);
 
 			ImGui::TreePop();
 		}
@@ -440,10 +430,10 @@ void Application::DebugDrawWindow(bool* p_open)
 
 
 
-void Application::ProfilingCaptureWindow()
+void Application::ProfilingCaptureWindow_WIP()
 {
-	if (mUI.BeginPanel("Profiling Capture Window", &mPhysicsImGuiWindows.profilingCaptureWindow,
-		1600, 500, EditorImGui::EPanelScreenAnchor::TopLeft, vx::Vec2(0.35f, 0.5f)))
+	if (mUI.BeginPanel("Profiling Capture Window", &mPhysicsUIPanels.profilingCaptureWindow,
+		1600, 500, EditorUI::EPanelScreenAnchor::TopLeft, vx::Vec2(0.35f, 0.5f)))
 	{
 		///quick hack 
 		static Scenario* curr_scenario;
@@ -451,79 +441,74 @@ void Application::ProfilingCaptureWindow()
 		{
 			mProfilingCaptureSettings.name.Clear();
 			mProfilingCaptureSettings.name << mCurrScenario->Name();
-			//	vx::StackString<128> log_name("Logs/");
-			//	log_name << mCurrScenario->Name() << "-Complexity" << mApplicationLaunchTime << ".csv";
-
-			//mProfilingCaptureSettings.filename.Clear();
-			//mProfilingCaptureSettings.filename << ProfilingCaptureSettings::kPath <<
-			//	mProfilingCaptureSettings.name.Data() << "-Complexity" << mApplicationLaunchTime << ".csv";
 			curr_scenario = mCurrScenario;
 		}
 
-
-		/*if */(ImGui::InputText("Filename", mProfilingCaptureSettings.name.BufferHead(),
+		(ImGui::InputText("Filename", mProfilingCaptureSettings.name.BufferHead(),
 			sizeof(char) * mProfilingCaptureSettings.name.Capacity()));
-		//{
-		//	mProfilingCaptureSettings.filename.Clear();
-		//	mProfilingCaptureSettings.filename << ProfilingCaptureSettings::kPath <<
-		//		mProfilingCaptureSettings.name.Data() << "-Complexity" << mApplicationLaunchTime << ".csv";
-		//}
-
-		EditorImGui::TextColoured(vx::Colour::sYellow, "Full path: %s WIP", mProfilingCaptureSettings.name.Data());
+		EditorUI::TextColoured(vx::Colour::sYellow, "Full path: %s {WIP}", mProfilingCaptureSettings.name.Data());
 
 		int v = mProfilingCaptureSettings.captureEveryPhysicsStep;
-		if (EditorImGui::SliderInt("Capture Every Physics Step", &v, 15, 360))
+		if (EditorUI::SliderInt("Capture Every Physics Step", &v, 15, 360))
 			mProfilingCaptureSettings.captureEveryPhysicsStep = v;
 
-		EditorImGui::HelpInformation("iteration loops through vel iterations 4, 8, 16, 32, repeat");
-		v = mProfilingCaptureSettings.iterationCountPerSequence;
-		EditorImGui::SliderInt("Iteration Count Per Sequence", &v, 1, 18);
-			mProfilingCaptureSettings.iterationCountPerSequence = v;
-
-
-		if(ImGui::Button("Trigger New Capture"))
-		{
-			mProfilingCaptureSettings.triggerNewCapture = true;
-			mPhysicsDebugState.triggerReset = true;
-			mPhysicsAppSetting.StateStats().paused = false;
-		}
-
-		ImGui::Text("Current Thread Sequence: %d", (int)mProfilingCaptureSettings.threadCountSequence);
-
+		ImGui::Separator();
+		ImGui::Checkbox("Pause On Complete", &mProfilingCaptureSettings.pauseOnComplete);
 		ImGui::Checkbox("Close App On Complete", &mProfilingCaptureSettings.closeAppOnComplete);
 		ImGui::Checkbox("Reload Physics Every thread sequence", &mProfilingCaptureSettings.reloadPhysicsEveryThreadSequence);
 
-
-		const uint32 max_hardware_concurrency = std::thread::hardware_concurrency();
-		if (mPhysicsWorld != nullptr && ImGui::BeginTable("", max_hardware_concurrency))
+		if(ImGui::TreeNodeEx("Solver Velocity Work Profile", 
+			EditorUI::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
 		{
+			v = mProfilingCaptureSettings.iterationCountPerSequence;
+			EditorUI::SliderInt("Iteration Count Per Sequence", &v, 1, 18);
+			mProfilingCaptureSettings.iterationCountPerSequence = v;
+			ImGui::SameLine();
+			EditorUI::HelpInformation("iteration loops through vel iterations 4, 8, 16, 32, repeat");
 
-			/// bins
-			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
-				ImGui::TableSetupColumn((vx::StackString<18>("Rank_") << i << "(Avg)").Data());
 
-			ImGui::TableHeadersRow();
-
-			ImGui::TableNextRow();
-
-			const auto& profile = mPhysicsWorld->mVelocitySolveProfile;
-
-			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
+			if (ImGui::Button("Trigger New Capture"))
 			{
-				ImGui::TableSetColumnIndex(i);
-				ImGui::Text("%d (%f)", profile.total_jacobian_solved[i], float(profile.total_jacobian_solved[i]) / float(profile.sampleCount));
+				mProfilingCaptureSettings.triggerNewCapture = true;
+				mPhysicsDebugState.triggerReset = true;
+				mPhysicsAppSetting.StateStats().paused = false;
 			}
 
-			ImGui::TableNextRow();
-			for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
-			{
-				ImGui::TableSetColumnIndex(i);
-				ImGui::Text("(%f)", float(profile.total_jacobian_solved[i]) / float(profile.contributionSampleCount[i]));
-			}
-			ImGui::EndTable();
+			ImGui::Text("Current Thread Sequence: %d", (int)mProfilingCaptureSettings.threadCountSequence);
 
+			const uint32 max_hardware_concurrency = std::thread::hardware_concurrency();
+			if (mPhysicsWorld != nullptr && ImGui::BeginTable("", max_hardware_concurrency))
+			{
+
+				/// bins
+				for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
+				{
+					ImGui::TableSetupColumn((vx::StackString<8>("R") << i).Data());
+				}
+
+				ImGui::TableHeadersRow();
+
+				ImGui::TableNextRow();
+
+				const auto& profile = mPhysicsWorld->mVelocitySolveProfile;
+
+				for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
+				{
+					ImGui::TableSetColumnIndex(i);
+					ImGui::Text("%d (%f)", profile.total_jacobian_solved[i], float(profile.total_jacobian_solved[i]) / float(profile.sampleCount));
+				}
+
+				ImGui::TableNextRow();
+				for (vx::uint32 i = 0; i < max_hardware_concurrency; ++i)
+				{
+					ImGui::TableSetColumnIndex(i);
+					ImGui::Text("(%f)", float(profile.total_jacobian_solved[i]) / float(profile.contributionSampleCount[i]));
+				}
+				ImGui::EndTable();
+
+			}
+			ImGui::TreePop();
 		}
-
 	}
 	ImGui::End();
 }
@@ -534,15 +519,15 @@ void Application::TempPhysicsSettings(bool* p_open)
 	if (ImGui::Begin("Physics Settings", p_open))
 	{
 		auto& phy_settings = *mPhysicsWorld->Settings();
-		EditorImGui::SliderFloat("Scratch Allocation", &phy_settings.scratchAllocationMiB, 0.0f, 32.0f, "%.1f MiB");
+		EditorUI::SliderFloat("Scratch Allocation", &phy_settings.scratchAllocationMiB, 0.0f, 32.0f, "%.1f MiB");
 
-		if (ImGui::TreeNodeEx("COLLISION", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("COLLISION", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("Force BVH Rebuild Every step", &phy_settings.collision.forceBVHRebuildEveryStep);
 			ImGui::Checkbox("Rebuild BVH SAH", &phy_settings.collision.rebuildSAH);
-			if (EditorImGui::SliderFloat("Collision Bounds Margin (m)", &phy_settings.collision.boundsMargin, 0.01f, 0.6f))
+			if (EditorUI::SliderFloat("Collision Bounds Margin (m)", &phy_settings.collision.boundsMargin, 0.01f, 0.6f))
 				mPhysicsWorld->SetBroadphaseNodeBoundThreshold(phy_settings.collision.boundsMargin);
-			EditorImGui::SliderFloat("Imbalance ratio treshold rebuild", &phy_settings.collision.rebuildBVHimbalanceRatioTreshold, 0.0f, 1.0f);
+			EditorUI::SliderFloat("Imbalance ratio treshold rebuild", &phy_settings.collision.rebuildBVHimbalanceRatioTreshold, 0.0f, 1.0f);
 			ImGui::Checkbox("Debug Box - Box contacts", &phy_settings.drawSettings->drawAABBContactManifoldInFrame);
 			ImGui::Checkbox("Debug Box - Box contacts with plane", &phy_settings.drawSettings->drawAABBContactManifoldInFrameWcPlane);
 			if (ImGui::TreeNode("Narrowphase Stats"))
@@ -584,13 +569,13 @@ void Application::TempPhysicsSettings(bool* p_open)
 		if (open_contact_solver_win)
 			Contact_Solver_Win(&open_contact_solver_win);
 
-		if (ImGui::TreeNodeEx("SOLVER", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("SOLVER", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("Enable Solver", &phy_settings.solver.enable);
 			ImGui::Checkbox("Enable Contact Solver", &phy_settings.solver.enableContact);
 			ImGui::Checkbox("Enable Warm Start", &phy_settings.solver.warmstart);
-			EditorImGui::SliderInt("Contact Constraint Interations", &phy_settings.solver.velocityIterations, 0, 25);
-			EditorImGui::SliderInt("Contact Position Interations", &phy_settings.solver.positionIterations, 0, 10);
+			EditorUI::SliderInt("Contact Constraint Interations", &phy_settings.solver.velocityIterations, 0, 25);
+			EditorUI::SliderInt("Contact Position Interations", &phy_settings.solver.positionIterations, 0, 10);
 			int v = (int)phy_settings.solver.restitutionCombineMode;
 			if (ImGui::Combo("Restitution Combine Mode", &v, vx::CoefficientCombineModeNames))
 			{
@@ -607,10 +592,10 @@ void Application::TempPhysicsSettings(bool* p_open)
 			ImGui::SliderFloat("Restitution Threshold", &phy_settings.solver.restitutionThreshold, 0.01f, 2.0f);
 			ImGui::SliderFloat("Friction Threshold (m/s)", &phy_settings.solver.frictionThreshold, 0.0f, 0.001f, "%.6f");
 
-			if (ImGui::TreeNodeEx("Position Contact Settings", EditorImGui::kTreeNodeFlags))
+			if (ImGui::TreeNodeEx("Position Contact Settings", EditorUI::kTreeNodeFlags))
 			{
-				EditorImGui::SliderFloat("Slop", &phy_settings.solver.positionCorrectionSlop, 0, 1, "%.2f");
-				EditorImGui::SliderFloat("Bias", &phy_settings.solver.baumgarte, 0, 1, "%.1f");
+				EditorUI::SliderFloat("Slop", &phy_settings.solver.positionCorrectionSlop, 0, 1, "%.2f");
+				EditorUI::SliderFloat("Bias", &phy_settings.solver.baumgarte, 0, 1, "%.1f");
 				ImGui::SliderFloat2("Limit",
 					&phy_settings.solver.positionCorrectionGlobalLimits[0],
 					phy_settings.solver.positionCorrectionGlobalLimits[0] - 0.2f,
@@ -623,12 +608,12 @@ void Application::TempPhysicsSettings(bool* p_open)
 		}
 
 
-		if (ImGui::TreeNodeEx("SLEEPING", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("SLEEPING", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Checkbox("Enable Sleeping", &phy_settings.sleeping.enable);
-			EditorImGui::SliderFloat("Sleep Velocity Threshold", &phy_settings.sleeping.velocityThreshold, 0.0f, 1.0f);
-			EditorImGui::SliderFloat("Sleep Angular Threshold", &phy_settings.sleeping.angularThreshold, 0.0f, 1.0f);
-			EditorImGui::SliderFloat("Sleep Time Threshold", &phy_settings.sleeping.timeThreshold, 0.0f, 1.0f);
+			EditorUI::SliderFloat("Sleep Velocity Threshold", &phy_settings.sleeping.velocityThreshold, 0.0f, 1.0f);
+			EditorUI::SliderFloat("Sleep Angular Threshold", &phy_settings.sleeping.angularThreshold, 0.0f, 1.0f);
+			EditorUI::SliderFloat("Sleep Time Threshold", &phy_settings.sleeping.timeThreshold, 0.0f, 1.0f);
 
 			ImGui::TreePop();
 		}
@@ -665,7 +650,7 @@ void Application::TempPhysicsSettings(bool* p_open)
 		ImGui::Text("Scratch Total Step Debug Allocation");
 #endif // defined VX_DEBUG_ALLOCATOR
 
-		if (ImGui::TreeNodeEx("Physics Frame State", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Physics Frame State", EditorUI::kTreeNodeFlags))
 		{
 			const PhysicsAppSetting::State& curr_state = mPhysicsAppSetting.StateStats();
 			ImGui::Text("Accumulated frame time %.3fs.", curr_state.accumulator);
@@ -761,7 +746,7 @@ Application::Application(const ApplicationSpecification& app_spec)
 		mUI.Initialise(mWindow.BackendWindow_Ptr());
 
 		mProfilingSession = vx::MakeScope<ProfilingSession>();
-		mProfilingSession->EnsureSessionDir();
+		//mProfilingSession->EnsureSessionDir();
 	}
 
 
@@ -773,7 +758,7 @@ Application::Application(const ApplicationSpecification& app_spec)
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<SimpleBasicScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<WorldQueriesScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<JointScenario>());
-	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<PersistentContactScenario>());
+	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<PointConstraintScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RagdollScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<EmptyScenario>());
 	mScenarioCatergoies.scenarios.push_back(vx::MakeScope<RandomSpreadBoxBodiesScenario>());
@@ -832,24 +817,28 @@ Application::~Application()
 	mUI.Shutdown();
 	mRenderer.Destroy();
 
-	if(mPhysicsWorldSettings)
-		mProfilingSession->ExportProfileDataCSV("Vortrix_Complexity_Validation",
-			mPhysicsWorldSettings->maxConcurrency, 9, 153535);
-
-	if (mPhysicsWorld)
+	const bool capture_end_app = false;
+	if(capture_end_app)
 	{
-		//ExportSortedLoadBalancingToCSV(
-			//(vx::StackString("LoadBalancing_") << mApplicationLaunchTime << ".csv").Data(),
-			mProfilingSession->ExportSortedLoadBalancingToCSVII(std::string("LoadBalancing_") + mApplicationLaunchTime,
-			mCurrScenario->Name(), mPhysicsWorld->mVelocitySolveProfile, mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency());
+		if (mPhysicsWorldSettings)
+			mProfilingSession->ExportProfileDataCSV("Vortrix_Complexity_Validation",
+				mPhysicsWorldSettings->maxConcurrency, 9, 153535);
 
-		//ExportSortedLoadBalancingToCSV(
-			//(vx::StackString("Test_LoadBalancing_") << mApplicationLaunchTime << ".csv").Data(),
-			//mProfilingSession->RelativeDir() + "/Test_LoadBalancing_" + mApplicationLaunchTime + ".csv",
-			mProfilingSession->ExportSortedLoadBalancingToCSVI(std::string("Test_LoadBalancing_") + mApplicationLaunchTime,
-			mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(), mPhysicsWorld->Settings()->solver.velocityIterations,
-			mPhysicsWorld->mVelocitySolveProfile,
-			std::thread::hardware_concurrency());
+		if (mPhysicsWorld)
+		{
+			//ExportSortedLoadBalancingToCSV(
+				//(vx::StackString("LoadBalancing_") << mApplicationLaunchTime << ".csv").Data(),
+			mProfilingSession->ExportSortedLoadBalancingToCSVII(std::string("LoadBalancing_") + mApplicationLaunchTime,
+				mCurrScenario->Name(), mPhysicsWorld->mVelocitySolveProfile, mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency());
+
+			//ExportSortedLoadBalancingToCSV(
+				//(vx::StackString("Test_LoadBalancing_") << mApplicationLaunchTime << ".csv").Data(),
+				//mProfilingSession->RelativeDir() + "/Test_LoadBalancing_" + mApplicationLaunchTime + ".csv",
+			mProfilingSession->ExportSolverLoadBalancingCSV(std::string("Test_LoadBalancing_") + mApplicationLaunchTime,
+				mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(), mPhysicsWorld->Settings()->solver.velocityIterations,
+				mPhysicsWorld->mVelocitySolveProfile,
+				std::thread::hardware_concurrency());
+		}
 	}
 	delete mLoadedFromDiskScenario;
 
@@ -898,6 +887,7 @@ void Application::Run()
 			mWindow.PollEvents();
 		}
 		CheckInputs();
+
 
 		if (mWindow.Minimised())
 			continue;
@@ -971,32 +961,31 @@ void Application::Run()
 			ResetParticleWorld(mPhysicsDebugState.triggerParticleReset);
 
 
-		/// Debug frame times
-		if (mMaxAttainedFrameDeltaTime < mFrameDeltaTime)
-		{
-			mMaxAttainedFrameDeltaTime = mFrameDeltaTime;
-			VX_LOG_DEBUG("Sim Time:", mMaxAttainedFrameDeltaTime, "ms");
-		}
+		///// Debug frame times
+		//if (mMaxAttainedFrameDeltaTime < mFrameDeltaTime)
+		//{
+		//	mMaxAttainedFrameDeltaTime = mFrameDeltaTime;
+		//	VX_LOG_DEBUG("Sim Time:", mMaxAttainedFrameDeltaTime, "ms");
+		//}
 
 		OnRenderer();
-		OnDrawImGuiOverlays();
-		if (mCurrScenario)
+
+		//========== UI ==========/
+		if (mPhysicsUIPanels.enable)
 		{
-			//debg current scene 
-			VX_VARIABLE_PROFILE_SCOPE("App Scenario UI Overlay");
-			//if (ImGui::Begin("Debug Scenario"))
-			//{
-			//	ImGui::Text("Scene: %s", mCurrScenario->Name());
-			//	ImGui::Text("Info: %s", mCurrScenario->Info());
-			//}
-			//ImGui::End();
-			mCurrScenario->OnUI();
+			VX_VARIABLE_PROFILE_SCOPE("App UI Panel Frame");
+			OnDrawImGuiOverlays();
+			if (mCurrScenario)
+			{
+				VX_VARIABLE_PROFILE_SCOPE("App Scenario UI Overlay");
+				mCurrScenario->OnUI();
+			}
+			mUI.RenderFrame();
 		}
 
 		//========== RESOLVE FRAME ==========/
 		{
 			VX_VARIABLE_PROFILE_SCOPE("Resolve Application Frame");
-			mUI.RenderFrame();
 			mWindow.SwapBuffer();
 		}
 	}
@@ -1043,7 +1032,7 @@ vx::PhysicsWorld* Application::CreatePhysicsWorld(vx::PhysicsWorldSettings* sett
 	/// note this resets camera, 
 	/// but could be overwritten in Scenario if needed
 	//ResetCamera();
-	mSelectedBodyToApplyForce = vx::BodyID(); 
+	mSimSelectedBody.Reset();
 
 	auto world = new PhysicsWorld(setting);
 
@@ -1113,9 +1102,10 @@ void Application::PhysicsStep(double frame_dt)
 			curr_state.subSteps++;
 			auto end = Clock::now();
 			mPhysicsStepDuration = std::chrono::duration<double, std::milli>(end - start).count();
+			mPhysicsAppSetting.UpdateStepTimeEmaAvg(mPhysicsStepDuration);
 
 
-			PhysicsSubstepProfilingDataCapture();
+			CapturePhysicsSubstepVelocitySolverProfile();
 		}
 	}
 
@@ -1137,7 +1127,7 @@ void Application::PhysicsStep(double frame_dt)
 	curr_state.maxAttainedSubStep = vx::VxMax(curr_state.maxAttainedSubStep, curr_state.subSteps);
 }
 
-void Application::PhysicsSubstepProfilingDataCapture()
+void Application::CapturePhysicsSubstepVelocitySolverProfile()
 {
 
 	///Profiling
@@ -1255,17 +1245,18 @@ void Application::PhysicsSubstepProfilingDataCapture()
 		//log_name << "-Complexity" << mApplicationLaunchTime << ".csv";
 		//ExportProfilingDataToCSV(log_name.Data(), mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(), vel_iteration, constraint_count);
 		mProfilingSession->ExportProfileDataCSV(std::string(mProfilingCaptureSettings.name.Data()) +
-			"-Complexity" + std::to_string(capture_data_index),
+			"-sim_step_capture" + std::to_string(capture_data_index),
 			mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(), vel_iteration, constraint_count);
 		
 		vx::SolverWorkloadStats stats = vx::CollectSolverWorkloadStats(*mPhysicsWorld->Context());
 		//ExportProfilingDataToCSV((vx::StackString("Logs/Test_COM_") << mApplicationLaunchTime << ".csv").Data(),
-		mProfilingSession->ExportProfilingDataCSVWorkload(std::string("Test_COM_") + std::to_string(capture_data_index),
+		mProfilingSession->ExportSolverWorkloadCSV(std::string(mProfilingCaptureSettings.name.Data()) + 
+			std::string("-solver_workload_capture") + std::to_string(capture_data_index),
 			mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(),
 			vel_iteration, stats);
 
-		mProfilingSession->ExportSortedLoadBalancingToCSVI(
-			(vx::StackString("Test_LoadBalancing_") << capture_data_index).Data(),
+		mProfilingSession->ExportSolverLoadBalancingCSV(std::string(mProfilingCaptureSettings.name.Data()) +
+			"-solver_load_balancing_capture" + std::to_string(capture_data_index),
 			mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency(), mPhysicsWorld->Settings()->solver.velocityIterations,
 			mPhysicsWorld->mVelocitySolveProfile,
 			std::thread::hardware_concurrency());
@@ -1287,10 +1278,43 @@ void Application::PhysicsSubstepProfilingDataCapture()
 			/// complete profiline
 			if (mProfilingCaptureSettings.threadCountSequence > max_hardware_concurrency - 1)
 			{
+				//mPhysicsWorld->Settings()->collision.
+				std::string capture_note;
+				capture_note.reserve(256);
+				capture_note += "Name: " + std::string(mProfilingCaptureSettings.name.Data());
+				capture_note += "\nvelocity island constraint workload profile";
+				capture_note += "\nMax Concurrency: " + std::to_string(max_hardware_concurrency);
+				capture_note += "\nCapture every physics step: " + std::to_string(mProfilingCaptureSettings.captureEveryPhysicsStep);
+				capture_note += "\nIteration count per sequence: ";
+				for (size_t i = 0; i < mProfilingCaptureSettings.iterationCountPerSequence; ++i)
+					capture_note += " " + std::to_string(sweep[i]);
+
+				capture_note += "\n\nHertz: " + std::to_string(1.0f / mPhysicsWorld->Context()->mDeltaTime);
+
+				capture_note += "\n\nEnable Solver: " + std::to_string(mPhysicsWorld->Settings()->solver.enable);
+				capture_note += "\nEnable Warm starting: " + std::to_string(mPhysicsWorld->Settings()->solver.warmstart);
+				capture_note += "\nPosition iterations: " + std::to_string(mPhysicsWorld->Settings()->solver.positionIterations);
+
+				capture_note += "\n\nEnable Sleeping: " + std::to_string(mPhysicsWorld->Settings()->sleeping.enable);
+				capture_note += "\nSleeping time threshold: " + std::to_string(mPhysicsWorld->Settings()->sleeping.timeThreshold);
+				capture_note += "\nSleeping velocity threshold: " + std::to_string(mPhysicsWorld->Settings()->sleeping.velocityThreshold);
+				capture_note += "\nSleeping angular threshold: " + std::to_string(mPhysicsWorld->Settings()->sleeping.angularThreshold);
+
+				capture_note += "\n\nEnable Large island split: " + std::to_string(mPhysicsWorld->Settings()->splitLargeIsland);
+				capture_note += "\nLarge island threshold: " + std::to_string(vx::IslandCoordinator::Splitter::kLargeIslandSpitThreshold);
+				capture_note += "\nLarge island batch size: " + std::to_string(vx::IslandCoordinator::Splitter::kBatchSize);
+
+				mProfilingSession->WriteNote(std::string(mProfilingCaptureSettings.name.Data()) +
+					"_capture" + std::to_string(capture_data_index) + "_note", capture_note);
+
 				if (mProfilingCaptureSettings.closeAppOnComplete)
 					Quit();
-				else
+				else 
+				{
 					complete_curr_capture = true;
+					if (mProfilingCaptureSettings.pauseOnComplete)
+						mPhysicsAppSetting.Pause(true);
+				}
 			}
 			else
 			{
@@ -1379,6 +1403,10 @@ void Application::CheckInputs()
 	else if (is_fullscreen && Input::GetKeyDown(IKeyCode::Escape))
 		mWindow.FullScreen(false);
 
+	if (Input::GetKeyDown(IKeyCode::F1))
+		mPhysicsUIPanels.appHelpWindow = !mPhysicsUIPanels.appHelpWindow;
+	if (Input::GetKeyDown(IKeyCode::Tab))
+		mPhysicsUIPanels.enable = !mPhysicsUIPanels.enable;
 
 	bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
 	bool alt_pressed = Input::GetKey(IKeyCode::RightAlt) || Input::GetKey(IKeyCode::LeftAlt);
@@ -1405,34 +1433,6 @@ void Application::CheckInputs()
 
 	if (Input::GetMousePressed(IKeyCode::MouseRightButton))
 		mWindow.ToggleLockCursor();
-
-	if(!CheckInputsBlocked())
-	{
-
-
-		//directional light location 
-		float light_move_speed = 2.5f;
-		auto light_pos = mRenderer.GetDirectionalLightDir();
-		if (Input::GetKey(IKeyCode::J))
-			light_pos += vx::Vec3(1.0f, 0.0f, 0.0f) * float(mFrameDeltaTime) * light_move_speed;
-		if (Input::GetKey(IKeyCode::L))
-			light_pos += vx::Vec3(-1.0f, 0.0f, 0.0f) * float(mFrameDeltaTime) * light_move_speed;
-
-		if (Input::GetKey(IKeyCode::K))
-			light_pos += vx::Vec3(0.0f, 0.0f, -1.0f) * float(mFrameDeltaTime) * light_move_speed;
-		if (Input::GetKey(IKeyCode::I))
-			light_pos += vx::Vec3(0.0f, 0.0f, 1.0f) * float(mFrameDeltaTime) * light_move_speed;
-
-
-		if (Input::GetKey(IKeyCode::U))
-			light_pos += vx::Vec3(0.0f, 1.0f, 0.0f) * float(mFrameDeltaTime) * light_move_speed;
-		if (Input::GetKey(IKeyCode::O))
-			light_pos += vx::Vec3(0.0f, -1.0f, 0.0f) * float(mFrameDeltaTime) * light_move_speed;
-
-		mRenderer.SetDirectionalLightDir(light_pos.Normalised());
-
-	}
-
 }
 
 bool Application::CheckInputsBlocked()
@@ -1465,7 +1465,7 @@ void Application::OnRenderer()
 
 
 		/// debug sampled structure
-		if(mPhysicsImGuiWindows.createNewCustomPhysicsObject)
+		if(mPhysicsUIPanels.createNewCustomPhysicsObject)
 		{
 			for (const auto& pos : mSampleStructure.positions)
 			{
@@ -1780,18 +1780,21 @@ void Application::OnRenderer()
 
 
 		///draw arrow sligthly above body 
-		if(mSelectedBodyToApplyForce.IsValid())
+		if(mSimSelectedBody.mBody.IsValid())
 		{
-			auto& body = mPhysicsWorld->GetBodyManager().GetBody(mSelectedBodyToApplyForce);
+			auto& body = mPhysicsWorld->GetBodyManager().GetBody(mSimSelectedBody.mBody);
 			vx::Vec3 body_up = body.Orientation().RotateAxisY();
 			float offset = body.GetShape()->HalfExtents().Y() + 0.5f;
 			vx::Vec3 draw_pos = body.Position() + body_up * offset;
 
 
-			float half_length = 1.5f;
-			vx::Vec3 v0 = draw_pos - mSelectedBodyToApplyForceFwd * half_length;
-			vx::Vec3 v1 = draw_pos + mSelectedBodyToApplyForceFwd * half_length;
-			mDebugGizmos->DrawArrowCone(v0, v1, 0.25, 0.7, 0.25, 4, vx::Colour::sBlue);
+			if(mSimSelectedBody.mEditingForce)
+			{
+				float half_length = 1.5f;
+				vx::Vec3 v0 = draw_pos - mSimSelectedBody.mForceDir * half_length;
+				vx::Vec3 v1 = draw_pos + mSimSelectedBody.mForceDir * half_length;
+				mDebugGizmos->DrawArrowCone(v0, v1, 0.25, 0.7, 0.25, 4, vx::Colour::sBlue);
+			}
 
 
 			vx::OBB obb = OBB(body.GetShape()->LocalBounds(), body.Orientation());
@@ -2202,8 +2205,6 @@ void Application::OnDrawImGuiOverlays()
 	VX_VARIABLE_PROFILE_FUNCTION();
 	mUI.BeginNewFrame(float(mWindow.Width()), float(mWindow.Height()));
 
-	ApplyForceToSelectedBody();
-
 	static bool open_sim_detail_overlay = true;
 	static bool open_phy_entt_win = false;
 	//static bool open_create_new_body_win = false;
@@ -2230,7 +2231,7 @@ void Application::OnDrawImGuiOverlays()
 			auto& physics_state = mPhysicsAppSetting.StateStats();
 			if (ImGui::MenuItem("Single step simulation", "F10"))
 				physics_state.multipleStep = 1;
-			EditorImGui::SliderInt("N Step", &physics_state.nStep, 1, 20);
+			EditorUI::SliderInt("N Step", &physics_state.nStep, 1, 20);
 			ImGui::SameLine();
 			if (ImGui::MenuItem("Multi step simulation", "Shift + F10"))
 				physics_state.multipleStep = physics_state.nStep;
@@ -2252,15 +2253,15 @@ void Application::OnDrawImGuiOverlays()
 		if (ImGui::BeginMenu("Edit"))
 		{
 			if (ImGui::MenuItem("Create New body", "SPACE BAR to spawn")) mNewPhyObjectSettings.openWindow = !mNewPhyObjectSettings.openWindow;
-			if (ImGui::MenuItem("Create New Constraints")) mPhysicsImGuiWindows.createConstraints = !mPhysicsImGuiWindows.createConstraints;
-			if (ImGui::MenuItem("Create New Custom Physics Object")) mPhysicsImGuiWindows.createNewCustomPhysicsObject = !mPhysicsImGuiWindows.createNewCustomPhysicsObject;
+			if (ImGui::MenuItem("Create New Constraints")) mPhysicsUIPanels.createConstraints = !mPhysicsUIPanels.createConstraints;
+			if (ImGui::MenuItem("Create New Custom Physics Object")) mPhysicsUIPanels.createNewCustomPhysicsObject = !mPhysicsUIPanels.createNewCustomPhysicsObject;
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Windows"))
 		{
 			if (ImGui::MenuItem("Physics Entities")) open_phy_entt_win = !open_phy_entt_win;
-			if (ImGui::MenuItem("Active Bodies List")) mPhysicsImGuiWindows.activeBodiesList = !mPhysicsImGuiWindows.activeBodiesList;
-			if (ImGui::MenuItem("Island Coordinator")) mPhysicsImGuiWindows.islandCoord = !mPhysicsImGuiWindows.islandCoord;
+			if (ImGui::MenuItem("Active Bodies List")) mPhysicsUIPanels.activeBodiesList = !mPhysicsUIPanels.activeBodiesList;
+			if (ImGui::MenuItem("Island Coordinator")) mPhysicsUIPanels.islandCoord = !mPhysicsUIPanels.islandCoord;
 			if (ImGui::BeginMenu("Collisions"))
 			{
 				if (ImGui::MenuItem("BroadPhase Insights")) show_broadphase_insight = !show_broadphase_insight;
@@ -2269,34 +2270,34 @@ void Application::OnDrawImGuiOverlays()
 				ImGui::EndMenu();
 			}
 			if (ImGui::MenuItem("Simulation Details")) open_sim_detail_overlay = !open_sim_detail_overlay;
-			if (ImGui::MenuItem("Solver Body Physics Body")) mPhysicsImGuiWindows.showSolverBodyPhysicsBodyWindow = !mPhysicsImGuiWindows.showSolverBodyPhysicsBodyWindow;
+			if (ImGui::MenuItem("Solver Body Physics Body")) mPhysicsUIPanels.showSolverBodyPhysicsBodyWindow = !mPhysicsUIPanels.showSolverBodyPhysicsBodyWindow;
 			ImGui::MenuItem("Physics Settings Window", nullptr, &physics_settings_window);
 			ImGui::Separator();
 
-			if (ImGui::MenuItem("Application")) open_app_win = !open_app_win;
-			if (ImGui::MenuItem("Scenario Window Management")) mPhysicsImGuiWindows.scenarioWindowManagement = !mPhysicsImGuiWindows.scenarioWindowManagement;
-			if (ImGui::MenuItem("Profiling Data Capture Window")) mPhysicsImGuiWindows.profilingCaptureWindow = !mPhysicsImGuiWindows.profilingCaptureWindow;
-			if (ImGui::MenuItem("Program Window State Info Window")) mPhysicsImGuiWindows.programWindowStateInfoWindow = !mPhysicsImGuiWindows.programWindowStateInfoWindow;
+			ImGui::MenuItem("Application", nullptr, &open_app_win);
+			ImGui::MenuItem("Scenarios Inspection", nullptr, &mPhysicsUIPanels.scenariosInspection);
+			ImGui::MenuItem("Capture Profiling Data Window WIP", nullptr, &mPhysicsUIPanels.profilingCaptureWindow);
+			ImGui::MenuItem("Program Window State Info Window", nullptr, &mPhysicsUIPanels.programWindowStateInfoWindow);
 
 			ImGui::Separator();
 
 			if (ImGui::MenuItem("Create Physics Body")) mNewPhyObjectSettings.openWindow = !mNewPhyObjectSettings.openWindow;
-			if (ImGui::MenuItem("Create Constraints")) mPhysicsImGuiWindows.createConstraints = !mPhysicsImGuiWindows.createConstraints;
-			if (ImGui::MenuItem("Create New Custom Physics Objects")) mPhysicsImGuiWindows.createNewCustomPhysicsObject = !mPhysicsImGuiWindows.createNewCustomPhysicsObject;
-			if (ImGui::MenuItem("Apply External Effect On Bodies WIP")) mPhysicsImGuiWindows.applyExternalEffectOnBodies = !mPhysicsImGuiWindows.applyExternalEffectOnBodies;
+			if (ImGui::MenuItem("Create Constraints")) mPhysicsUIPanels.createConstraints = !mPhysicsUIPanels.createConstraints;
+			if (ImGui::MenuItem("Create New Custom Physics Objects")) mPhysicsUIPanels.createNewCustomPhysicsObject = !mPhysicsUIPanels.createNewCustomPhysicsObject;
+			if (ImGui::MenuItem("Apply External Effect On Bodies WIP")) mPhysicsUIPanels.applyExternalEffectOnBodies = !mPhysicsUIPanels.applyExternalEffectOnBodies;
 
 			ImGui::Separator();
 
-			if (ImGui::MenuItem("Help")) mPhysicsImGuiWindows.appHelpWindow = !mPhysicsImGuiWindows.appHelpWindow;
-			if (ImGui::MenuItem("Show ImGui Demo")) open_imgui_demo = !open_imgui_demo;
+			ImGui::MenuItem("Help", nullptr, &mPhysicsUIPanels.appHelpWindow);
+			ImGui::MenuItem("Show ImGui Demo", nullptr, &open_imgui_demo);
 
 			ImGui::EndMenu();
 		}
 
 		if (ImGui::BeginMenu("Scenarios"))
 		{
-			if (ImGui::MenuItem("Load from disk"))
-				mPhysicsImGuiWindows.loadScenarioWindow = true;
+			ImGui::MenuItem("Scenarios Inspection", nullptr, &mPhysicsUIPanels.scenariosInspection);
+			ImGui::MenuItem("Load from disk", nullptr, &mPhysicsUIPanels.loadScenarioWindow);
 			OnExpandDrawScenarioCatergory(mScenarioCatergoies);
 
 			ImGui::EndMenu();
@@ -2310,9 +2311,12 @@ void Application::OnDrawImGuiOverlays()
 			ImGui::MenuItem("OBB", nullptr, &draw_settings.drawOBB);
 			//ImGui::MenuItem("draw Bodies as Solid Mesh", nullptr, &draw_settings.drawBodiesAsSolid);
 			ImGui::MenuItem("Motion Velocities", nullptr, &draw_settings.drawBodiesVelocities);
+			ImGui::MenuItem("Masses", nullptr, &draw_settings.drawBodiesMassText);
+			ImGui::MenuItem("Inertia & Momentum", nullptr, &draw_settings.drawDebugInertia);
+			EditorUI::HelpInformation("Principal axes, equilvalent inertia box, angular momentum (L) and velocity (w) vectors", true);
 			{
-				EditorImGui::ScopePushItemWidth width(150.0f);
-				EditorImGui::Combo("Body Colour mode", draw_settings.bodyColourMode, vx::BodyColourModeLabels);
+				EditorUI::ScopePushItemWidth width(150.0f);
+				EditorUI::Combo("Colour mode", draw_settings.bodyColourMode, vx::BodyColourModeLabels);
 			}
 
 			ImGui::Separator();
@@ -2328,8 +2332,10 @@ void Application::OnDrawImGuiOverlays()
 
 			ImGui::Separator();
 			ImGui::MenuItem("Contacts", nullptr, &draw_settings.drawContacts);
-			ImGui::MenuItem("Contacts Normals", nullptr, &draw_settings.drawContactsNormals);
+			ImGui::MenuItem("Contact Normals", nullptr, &draw_settings.drawContactsNormals);
+			ImGui::MenuItem("Contact Penetration", nullptr, &draw_settings.drawPenetrationText);
 			ImGui::MenuItem("Contact TBNs", nullptr, &draw_settings.drawContactConstraintSolverTBNs);
+
 
 			ImGui::Separator();
 			ImGui::MenuItem("Debug Draw Options", nullptr, &visualise_debug_draw_win);
@@ -2339,19 +2345,19 @@ void Application::OnDrawImGuiOverlays()
 			//ImGui::Checkbox("Draw Per Island Constraint Group with Point", &draw_settings.drawPerIslandConstraintGroupPoint);
 			//ImGui::Checkbox("Draw Per Island Constraint Group with Plane", &draw_settings.drawPerIslandConstraintGroupPlane);
 			//ImGui::Checkbox("Draw Per Island Constraint Group Point as Wireframe", &draw_settings.drawPerIslandConstraintGroupPointAsWireframe);
-			//EditorImGui::SliderFloat("Draw Per Island Constraint Group Point Size", &draw_settings.drawPerIslandConstraintGroupPointSize, 0.01f, 4.0f);
-			//EditorImGui::SliderFloat("Draw Per Island Constraint Group Alpha ratio", &draw_settings.drawPerIslandConstraintGroupColourAlpha, 0.0f, 1.0
+			//EditorUI::SliderFloat("Draw Per Island Constraint Group Point Size", &draw_settings.drawPerIslandConstraintGroupPointSize, 0.01f, 4.0f);
+			//EditorUI::SliderFloat("Draw Per Island Constraint Group Alpha ratio", &draw_settings.drawPerIslandConstraintGroupColourAlpha, 0.0f, 1.0
 
 
-			if (ImGui::MenuItem("Render Options"))
-			{
-				/// Sphere render option
-				/// Box render option
-				/// Capsule render option
-				/// Plane render option
-				/// Hull??? render option
+			//if (ImGui::MenuItem("Render Options"))
+			//{
+			//	/// Sphere render option
+			//	/// Box render option
+			//	/// Capsule render option
+			//	/// Plane render option
+			//	/// Hull??? render option
 
-			}
+			//}
 		
 			ImGui::EndMenu();
 		}
@@ -2359,9 +2365,9 @@ void Application::OnDrawImGuiOverlays()
 		{
 			ImGui::MenuItem("Renderer Resoures", nullptr, &renderer_reso_win);
 			ImGui::MenuItem("Profiler", nullptr, &open_profiler_panel);
-			ImGui::MenuItem("Profiling Data Capture", nullptr, &mPhysicsImGuiWindows.profilingCaptureWindow);
-			ImGui::MenuItem("Island Coordinator", nullptr, &mPhysicsImGuiWindows.islandCoord);
-			ImGui::MenuItem("Active Bodies List", nullptr, &mPhysicsImGuiWindows.activeBodiesList);
+			ImGui::MenuItem("Capture Profiling Data Window WIP", nullptr, &mPhysicsUIPanels.profilingCaptureWindow);
+			ImGui::MenuItem("Island Coordinator", nullptr, &mPhysicsUIPanels.islandCoord);
+			ImGui::MenuItem("Active Bodies List", nullptr, &mPhysicsUIPanels.activeBodiesList);
 			if (ImGui::BeginMenu("Collisions"))
 			{
 				ImGui::MenuItem("BroadPhase Insights", nullptr, &show_broadphase_insight);
@@ -2372,13 +2378,13 @@ void Application::OnDrawImGuiOverlays()
 		}
 
 		if(ImGui::MenuItem("Help"))
-			mPhysicsImGuiWindows.appHelpWindow = !mPhysicsImGuiWindows.appHelpWindow;
+			mPhysicsUIPanels.appHelpWindow = !mPhysicsUIPanels.appHelpWindow;
 	}
 	mUI.EndMainMenu();
 
 
-	if (mPhysicsImGuiWindows.appHelpWindow)
-		DrawHelpWindow(mPhysicsImGuiWindows.appHelpWindow);
+	if (mPhysicsUIPanels.appHelpWindow)
+		DrawHelpWindow(mPhysicsUIPanels.appHelpWindow);
 
 	if(visualise_debug_draw_win)
 		DebugDrawWindow(&visualise_debug_draw_win);
@@ -2392,24 +2398,24 @@ void Application::OnDrawImGuiOverlays()
 	if(open_profiler_panel)
 	{
 		if (mUI.BeginPanel("Profiler", &open_profiler_panel, 
-			1600, 300, EditorImGui::EPanelScreenAnchor::BottomLeft, 
+			1600, 300, EditorUI::EPanelScreenAnchor::BottomLeft, 
 			vx::Vec2(3.1f, 1.5f)/ 4.0f, ImGuiWindowFlags_NoTitleBar))
 		{
 			DrawProfilePanel();
 		}
-		EditorImGui::EndPanel();
+		EditorUI::EndPanel();
 	}
 
 
 	////////////////////////////////////////////
 	////////////////////quick test//////////////
 	////////////////////////////////////////////
-	if(mPhysicsImGuiWindows.applyExternalEffectOnBodies)
-		DrawApplyExternalEffectDynamicBody(&mPhysicsImGuiWindows.applyExternalEffectOnBodies);
+	if(mPhysicsUIPanels.applyExternalEffectOnBodies)
+		DrawApplyExternalEffectDynamicBody(&mPhysicsUIPanels.applyExternalEffectOnBodies);
 
-	if(mPhysicsWorld && mPhysicsImGuiWindows.activeBodiesList)
+	if(mPhysicsWorld && mPhysicsUIPanels.activeBodiesList)
 	{
-		if (ImGui::Begin("Active Bodies List", &mPhysicsImGuiWindows.activeBodiesList))
+		if (ImGui::Begin("Active Bodies List", &mPhysicsUIPanels.activeBodiesList))
 		{
 			BodyID* active_bodies = mPhysicsWorld->ActiveBodies();
 
@@ -2450,26 +2456,32 @@ void Application::OnDrawImGuiOverlays()
 	////////////////////////////////////////////
 	////////////////////quick test//////////////
 	////////////////////////////////////////////
-	if(mPhysicsImGuiWindows.scenarioWindowManagement)
-		ScenarioInspectionWindow();
-	if (mPhysicsImGuiWindows.loadScenarioWindow)
+	if(mPhysicsUIPanels.scenariosInspection)
+	{
+		if (mUI.BeginPanel("Scenarions Inspection", &mPhysicsUIPanels.scenariosInspection,
+			450, 900, EditorUI::EPanelScreenAnchor::TopLeft,
+			1.0f / vx::Vec2(4.0f, 2.0f)))
+			ScenariosInspectionPanel_Details();
+		ImGui::End();
+	}
+	if (mPhysicsUIPanels.loadScenarioWindow)
 		LoadScenarioWindow();
-	if(mPhysicsImGuiWindows.islandCoord)
+	if(mPhysicsUIPanels.islandCoord)
 		PhysicsIslandCoordImGuiWindow();
 	
-	if(mPhysicsImGuiWindows.createNewCustomPhysicsObject)
+	if(mPhysicsUIPanels.createNewCustomPhysicsObject)
 		CreateNewCustomPhysicsObject();
 
-	if(mPhysicsImGuiWindows.createConstraints)
+	if(mPhysicsUIPanels.createConstraints)
 		CreateConstraintsWindow();
 
-	if(mPhysicsImGuiWindows.showSolverBodyPhysicsBodyWindow)
+	if(mPhysicsUIPanels.showSolverBodyPhysicsBodyWindow)
 		SolverBodyPhysicsBodyWindow();
 
-	if (mPhysicsImGuiWindows.profilingCaptureWindow)
-		ProfilingCaptureWindow();
+	if (mPhysicsUIPanels.profilingCaptureWindow)
+		ProfilingCaptureWindow_WIP();
 
-	if (mPhysicsImGuiWindows.programWindowStateInfoWindow)
+	if (mPhysicsUIPanels.programWindowStateInfoWindow)
 		ProgramWindowStateInfoWindow();
 
 
@@ -2478,55 +2490,15 @@ void Application::OnDrawImGuiOverlays()
 
 	if (open_sim_detail_overlay)
 	{
-		float win_width = 360;
-		const float app_workable_sizeX = mWindow.Width();
-		///the win show not be greater than a quater of the workable screem
-		win_width = vx::VxMin(win_width, app_workable_sizeX / 4);
-		const float app_workable_sizeY = mWindow.Height();
-
-		//ImVec2 win_size(349, 753);
-		float padding = 10.0f;
-		const float menu_item_sizeY = 25.0f;
-		float win_height = app_workable_sizeY - (2 * padding) - menu_item_sizeY;
-
-
-		ImVec2 win_size(win_width, win_height);
-
-		float win_posX = app_workable_sizeX - (win_size.x + padding);
-		ImVec2 win_pos(win_posX, padding + menu_item_sizeY);
-		//ImGui::SetNextWindowPos(win_pos, ImGuiCond_Appearing);
-		//ImGui::SetNextWindowSize(win_size, ImGuiCond_Appearing);
-
-		ImGui::SetNextWindowPos(win_pos, ImGuiCond_Always);
-		ImGui::SetNextWindowSize(win_size, ImGuiCond_Always);
-	
 		ImGuiWindowFlags global_win_flags = ImGuiWindowFlags_NoBackground;
 		global_win_flags = ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoTitleBar;
-		if (ImGui::Begin("##SimulationDetailOverlay", &open_sim_detail_overlay, global_win_flags))
+		if(mUI.BeginPrimaryPanel("##SimDetailPanel", &open_sim_detail_overlay, 360, float(mWindow.Width()),
+			EditorUI::EPanelScreenAnchor::TopRight, vx::Vec2(1.0f, 1.0f), global_win_flags))
+		//if (ImGui::Begin("##SimulationDetailOverlay", &open_sim_detail_overlay, global_win_flags))
 		{
 			SimulationDetailOverlay();
-
-			//ImGui::BeginTabBar("#Physics Config & Debug");
-
-			//if (ImGui::BeginTabItem("Physics Settings"))
-			//{
-			//	PhysicsSettingItemOverlays();
-			//	ImGui::EndTabItem();
-			//}
-			/////// TO-DO: Later remove profiler to a seperate window
-			////if (ImGui::BeginTabItem("Physics Profiler"))
-			////{
-			////	DrawProfileOverlay();
-			////	ImGui::EndTabItem();
-			////}
-			//if (ImGui::BeginTabItem("Renderer Resources"))
-			//{
-			//	DrawUIRendererResourcesPanel();
-			//	ImGui::EndTabItem();
-			//}
-			//ImGui::EndTabBar();
 		}
-		ImGui::End();
+		mUI.EndPrimaryPanel();
 	}
 
 	if (mNewPhyObjectSettings.openWindow) CreateNewPhysicsBodyWindow();
@@ -2580,7 +2552,7 @@ void Application::OnDrawImGuiOverlays()
 		{
 			if (mPhysicsWorld)
 			{
-				if (ImGui::TreeNodeEx("Broadphase Stat", EditorImGui::kTreeNodeFlags))
+				if (ImGui::TreeNodeEx("Broadphase Stat", EditorUI::kTreeNodeFlags))
 				{
 					ImGui::Text("Bodies count: %llu", static_cast<uint>(mPhysicsWorld->Bodies().size()));
 					vx::BVHBroadphase<AABB>* broad_phase;// = mPhysicsWorld->GetBVH_AABB_Broadphase();
@@ -2604,7 +2576,7 @@ void Application::OnDrawImGuiOverlays()
 				}
 
 				ImGui::Separator();
-				if (ImGui::TreeNodeEx("Broadphase Pair", EditorImGui::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
+				if (ImGui::TreeNodeEx("Broadphase Pair", EditorUI::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
 				{
 					uint32 bp_count = mPhysicsWorld->BroadphasePairsCount();
 					ImGui::Text("Pair count: %llu", static_cast<uint>(bp_count));
@@ -2784,33 +2756,43 @@ void Application::SimulationDetailOverlay()
 	if (!mPhysicsWorld)
 		return;
 
-	EditorImGui::TextColoured(EditorImGui::kAccent, "Sim:");
-	const float frame_time_ms = mFrameDeltaTime * 1000;
-	ImGui::TextColored((frame_time_ms < 18.0f) ?
-		ImVec4(0.0f, 0.72f, 0.0f, 0.85f) : ImVec4(0.8f, 0.0f, 0.0f, 0.85f),
-		"%.2fms", frame_time_ms);
+	EditorUI::TextColoured(EditorUI::kAccent, "Sim:");
+
+	//i.e ~0.03 at 60hz for stable time display interpolation
+	//const float alpha = mFrameDeltaTime / (0.5f + mFrameDeltaTime);
+	const float alpha = 1.0f - std::exp(-mFrameDeltaTime / 0.5f);
+
+	const float curr_frame_time_ms = mFrameDeltaTime * 1000;
+	static float smooth_frame_time_ms = curr_frame_time_ms;
+	smooth_frame_time_ms = vx::VxLerp(smooth_frame_time_ms, curr_frame_time_ms, alpha);
+
+	const float phys_time_ms = mPhysicsAppSetting.StateStats().frameTimeEmaAvgMs;
+	thread_local static float smooth_phys_time_ms = phys_time_ms;
+	smooth_phys_time_ms = vx::VxLerp(smooth_phys_time_ms, phys_time_ms, alpha);
+	ImGui::TextColored(ImVec4(0.0f, 0.72f, 0.0f, 0.85f), "App: %.1f ms | Physics: %.1f ms", smooth_frame_time_ms, phys_time_ms);
+
 	auto& phy_settings = *mPhysicsWorld->Settings();
-	const vx::uint32 curr_thread_count = mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency() - 1;
-	ImGui::Text("Physics Worker Count: %d", curr_thread_count + 1);
+	vx::uint32 curr_thread_count = mPhysicsWorld->GetTaskCoordinator()->MaxConcurrency();
+	ImGui::Text("Physics Max Concurrency: %d", curr_thread_count);
 	ImGui::Text("Steps: %d", mPhysicsWorld->Context()->mStepIndex);
 	ImGui::Separator();
 
 	static int freq_idx = (int)std::log2((float)mPhysicsAppSetting.Rate() / 30.0f);
 	{
-		EditorImGui::ScopePushItemWidth item_width = EditorImGui::kSliderWidth;
+		EditorUI::ScopePushItemWidth item_width = EditorUI::kSliderWidth;
 		if (ImGui::Combo("Physics Freq (Hz)", &freq_idx, "30 Hz\0""60 Hz\0""120 Hz\0""240 Hz\0"))
 			mPhysicsAppSetting.SetFrequency((30 * (1 << freq_idx)));
 	}
 	//TO-DO: REMOVE LATER 
-	EditorImGui::SliderInt("Max Physics Sub steps", &mPhysicsAppSetting.mMaxSubStep, 1, 8);
-	ImGui::SameLine(); EditorImGui::HelpInformation("For physics sub step within application frame");
-	const int max_threads = std::thread::hardware_concurrency() - 1;
-	EditorImGui::SliderInt("Max Concurrency", &phy_settings.maxConcurrency, -1, max_threads);
+	EditorUI::SliderInt("Max Physics Sub steps", &mPhysicsAppSetting.mMaxSubStep, 1, 8);
+	ImGui::SameLine(); EditorUI::HelpInformation("For physics sub step within application frame");
+	const int max_threads = std::thread::hardware_concurrency();
+	EditorUI::SliderInt("Max Concurrency", &phy_settings.maxConcurrency, 1, max_threads);
 	if (curr_thread_count != phy_settings.maxConcurrency && !(phy_settings.maxConcurrency == -1 && curr_thread_count == max_threads))
-		EditorImGui::TextColourWrapped(vx::Colour::sRed, "Task Coordinator, thread count miss match reset physics world");
+		EditorUI::TextColourWrapped(vx::Colour::sRed, "Task Coordinator, thread count miss match reset physics world");
 
 	auto& physics_state = mPhysicsAppSetting.StateStats();
-	EditorImGui::SliderInt("N Step", &physics_state.nStep, 1, 20);
+	EditorUI::SliderInt("N Step", &physics_state.nStep, 1, 20);
 	vx::StackString<16> button_text("Step ");
 	button_text << physics_state.nStep;
 	///std::string button_text = "Step " + std::to_string(physics_state.nStep);
@@ -2820,27 +2802,156 @@ void Application::SimulationDetailOverlay()
 		physics_state.paused = !physics_state.paused;
 	ImGui::SameLine();
 	if (ImGui::Button("Restart"))
+	{
+		phy_settings.maxConcurrency--;/// TO-DO: current max setup of max concurrency represent num of worker thread excluding main thread
 		mPhysicsDebugState.triggerReset = true;
+	}
 
 	ImGui::Separator();
 	ImGui::DragFloat3("Gravity", &phy_settings.gravity[0]);
-	EditorImGui::SliderFloat("Gravity Scale", &phy_settings.gravityScale, 0.0f, 1.0f, "%.2f");
+	EditorUI::SliderFloat("Gravity Scale", &phy_settings.gravityScale, 0.0f, 1.0f, "%.2f");
 	ImGui::Separator();
 
 	ImGui::Checkbox("Enable Sleeping", &phy_settings.sleeping.enable);
 	ImGui::Checkbox("Enable Solver", &phy_settings.solver.enable);
 	ImGui::Checkbox("Enable Contact Solver", &phy_settings.solver.enableContact);
 	ImGui::Checkbox("Enable Warm Start", &phy_settings.solver.warmstart);
-	EditorImGui::SliderInt("Velocity Iterations", &phy_settings.solver.velocityIterations, 0, 25);
-	EditorImGui::SliderInt("Position Iterations", &phy_settings.solver.positionIterations, 0, 10);
+	EditorUI::SliderInt("Velocity Iterations", &phy_settings.solver.velocityIterations, 0, 25);
+	EditorUI::SliderInt("Position Iterations", &phy_settings.solver.positionIterations, 0, 10);
 	ImGui::Checkbox("Split large Islands", &phy_settings.splitLargeIsland);
+
+
+
+	if (ImGui::TreeNodeEx("Selected Body", EditorUI::kTreeNodeFlags))
+	{
+
+		static vx::BodyID selected_body;
+		static vx::PhysicsWorld* track_physics_addr = mPhysicsWorld;
+		/// TO-DO: physics world miss match,
+		if (track_physics_addr != mPhysicsWorld)
+			mSimSelectedBody.Reset();
+		if (mCurrScenario && mCurrScenario->mMouseHoveringBody.IsValid())
+		{
+			track_physics_addr = mPhysicsWorld;
+			EditorUI::TextColourWrapped(vx::Colour::sYellow, 
+				"Using mouse hover to capture bodies, with Ctrl + A. Current Hovered Body: %d", 
+				mCurrScenario->mMouseHoveringBody.ID());
+
+			bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
+			if (ctr_pressed && Input::GetKey(IKeyCode::A))
+				selected_body = mCurrScenario->mMouseHoveringBody;
+		}
+		else
+			EditorUI::TextColourWrapped(vx::Colour::sYellow, "Using mouse hover to capture bodies, with Ctrl + A");
+		mSimSelectedBody.mBody = selected_body;
+		ImGui::Separator();
+
+		if (!selected_body.IsValid())
+			EditorUI::TextColoured(vx::Colour::sRed, "No Selected Body, Use Mouse hover + Ctrl + A");
+		else
+			mUI.DrawBodyOverlayDetails(selected_body, mPhysicsWorld);
+
+		if (ImGui::TreeNodeEx("Apply Force/Impluse", EditorUI::kTreeNodeFlags))
+		{
+			static IKeyCode key_code = IKeyCode::KP_2;
+			int v = (int)InputSystem::KeyCodeToIndex(key_code);
+			if (ImGui::Combo("Keycodes", &v, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size()))
+				key_code = InputSystem::KeyIndexToCode(IKeyIndex(v));
+
+			ImGui::Text("Use Ctrl + %s, to apply force", InputSystem::IKeyCodeNames[v].data());
+
+			ImGui::Text("Use Ctrl + ");
+			ImGui::SameLine();
+			int apply_impulse_keyidx = (int)InputSystem::KeyCodeToIndex(IKeyCode::B);
+			ImGui::Combo("for Impulse", &apply_impulse_keyidx, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size());
+			ImGui::Text("Use Ctrl + ");
+			ImGui::SameLine();
+			int apply_force_keyidx = (int)InputSystem::KeyCodeToIndex(IKeyCode::M);
+			ImGui::Combo("for Force", &apply_force_keyidx, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size());
+
+
+			ImGui::Separator();
+
+			ImGui::Text("Body A: %d", selected_body);
+
+			bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
+
+			if (selected_body.IsValid())
+			{
+				static vx::Vec3 apply_dir = -vx::Vec3::Forward();
+
+				ImGui::SliderFloat3("Dir", &apply_dir[0], -1.0f, 1.0f);
+				if (ImGui::DragFloat3("Dir", &apply_dir[0], 0.1f, -1.0f, 1.0f))
+					apply_dir = vx::Vec3::Clamp(apply_dir, vx::Vec3(-1.0f), vx::Vec3(1.0f));
+				static bool use_body_frame_forward = false;
+				ImGui::Checkbox("Use Body Frame Forward", &use_body_frame_forward);
+				static bool invert_fwd = false;
+				ImGui::Checkbox("Invert forward", &invert_fwd);
+
+				ImGui::Spacing();
+
+				vx::Vec3 body_fwd;
+				if (use_body_frame_forward)
+				{
+					auto& body = mPhysicsWorld->GetBodyManager().GetBody(selected_body);
+					vx::Vec3 body_fwd = (invert_fwd) ? -body.Orientation().RotateAxisZ() : body.Orientation().RotateAxisZ();
+
+					apply_dir = body_fwd;
+
+					char buff[64];
+					body_fwd.ToChar(buff, 64);
+					ImGui::Text("Body Frame Forward: %s", buff);
+				}
+
+				mSimSelectedBody.mForceDir = apply_dir;
+				mSimSelectedBody.mEditingForce = true;
+
+				static float impulse = 1000.0f;
+				ImGui::DragFloat("Impluse", &impulse);
+				if (ImGui::Button("Apply Linear Impluse"))
+					mPhysicsWorld->ApplyImpulse(selected_body, apply_dir * impulse);
+				ImGui::SameLine();
+				EditorUI::HelpInformation("Good use case: bullet impact, explosions, jumping, jolt body, knockback");
+
+				ImGui::Separator();
+				static float force = 1000.0f * 40.0f;
+
+				ImGui::PushID(&force);
+				ImGui::DragFloat("Force", &force);
+				ImGui::SameLine();
+				EditorUI::HelpInformation("Good use case: thrusters, pushing etc");
+				if (ImGui::Button("Add force"))
+					mPhysicsWorld->AddForce(selected_body, apply_dir * force);
+				ImGui::PopID();
+
+
+				if (ctr_pressed)
+				{
+					if (Input::GetKey(InputSystem::KeyIndexToCode(IKeyIndex(apply_impulse_keyidx))))
+						mPhysicsWorld->ApplyImpulse(selected_body, apply_dir * impulse);
+
+
+					if (Input::GetKey(InputSystem::KeyIndexToCode(IKeyIndex(apply_force_keyidx))))
+						mPhysicsWorld->AddForce(selected_body, apply_dir * force);
+				}
+			}
+			ImGui::TreePop();
+		}
+		else
+		{
+			mSimSelectedBody.mEditingForce = true;
+			mSimSelectedBody.mForceDir.ToZero();
+		}
+
+		ImGui::TreePop();
+	}
 }
 
 void Application::ApplicationDetailPanel(bool* p_open)
 {
 	vx::Vec2 pos;
 	vx::Vec2 size;
-	mUI.ResolvePanelPosSize(450, 900, pos, size, EditorImGui::EPanelScreenAnchor::TopLeft, 1.0f / vx::Vec2(4.0f, 2.0f));
+	mUI.ResolvePanelPosSize(450, 900, pos, size, EditorUI::EPanelScreenAnchor::TopLeft, 1.0f / vx::Vec2(4.0f, 2.0f));
 	ImGui::SetNextWindowPos(ImVec2(pos[0], pos[1]), ImGuiCond_Appearing);
 	ImGui::SetNextWindowSize(ImVec2(size[0], size[1]), ImGuiCond_Appearing);
 
@@ -2849,10 +2960,10 @@ void Application::ApplicationDetailPanel(bool* p_open)
 		static bool in_ms = false;
 		ImGui::Text("V-Sync: %s", (mWindow.GetVSync() ? "True" : "False"));
 		ImGui::Text("%.2f%ms.", (float)mFrameDeltaTime * 1000);
-		EditorImGui::SliderFloat("Time Scale", &mTimeScale, 0.0f, 1.0f);
+		EditorUI::SliderFloat("Time Scale", &mTimeScale, 0.0f, 1.0f);
 
 
-		if (ImGui::TreeNodeEx("Camera", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Camera", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::PushID(&mCamera);
 			
@@ -2867,13 +2978,13 @@ void Application::ApplicationDetailPanel(bool* p_open)
 			ImGui::Separator();
 
 			auto& cam_props = mCamera.GetProperties();
-			EditorImGui::SliderFloat("FovY", &cam_props.fovY, 0.0f, 120.0f, "%.1f");
+			EditorUI::SliderFloat("FovY", &cam_props.fovY, 0.0f, 120.0f, "%.f");
 			static float clipping_plane_prop_speed = 0.05f;
-			if (EditorImGui::DragFloat("Near", &cam_props.zNear, clipping_plane_prop_speed, 0.0f))
+			if (EditorUI::DragFloat("Near", &cam_props.zNear, clipping_plane_prop_speed, 0.0f))
 				cam_props.zNear = VxMax(cam_props.zNear, 1e-3f);
-			EditorImGui::DragFloat("Far", &cam_props.zFar, clipping_plane_prop_speed, 2000);
-			EditorImGui::SliderFloat("Move Speed", &cam_props.moveSpeed, 0.1f, 100.0f);
-			EditorImGui::SliderFloat("Rot Sensitivity", &cam_props.rotSensitivity, 0.01f, 0.1f);
+			EditorUI::DragFloat("Far", &cam_props.zFar, clipping_plane_prop_speed, 2000);
+			EditorUI::SliderFloat("Move Speed", &cam_props.moveSpeed, 0.1f, 100.0f);
+			EditorUI::SliderFloat("Rot Sensitivity", &cam_props.rotSensitivity, 0.01f, 0.1f);
 
 			ImGui::Separator();
 
@@ -2883,7 +2994,7 @@ void Application::ApplicationDetailPanel(bool* p_open)
 			ImGui::TreePop();
 		}
 
-		if (ImGui::TreeNodeEx("Rendering", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Rendering", EditorUI::kTreeNodeFlags))
 		{
 			auto Render_Inst_Ops = [](ERenderInstanceFlags& flags)
 				{
@@ -2911,7 +3022,7 @@ void Application::ApplicationDetailPanel(bool* p_open)
 			{
 				//const char* name = render_inst_names[i];
 				ImGui::PushID(&render_inst_names[i]);
-				if (ImGui::TreeNode(render_inst_names[i]))
+				if (ImGui::TreeNodeEx(render_inst_names[i], EditorUI::kTreeNodeFlags))
 				{
 					Render_Inst_Ops(*render_inst_flags[i]);
 					ImGui::TreePop();
@@ -2920,36 +3031,42 @@ void Application::ApplicationDetailPanel(bool* p_open)
 			}
 
 			{
-				EditorImGui::ScopePushItemWidth width(EditorImGui::kSliderWidth);
-				EditorImGui::Combo("Physics Text Alignment", mPhysicsRenderSettings.textAlignment, kTextAlignmentModelNames);
+				EditorUI::ScopePushItemWidth width(EditorUI::kSliderWidth);
+				EditorUI::Combo("Physics Text Alignment", mPhysicsRenderSettings.textAlignment, kTextAlignmentModelNames);
 			}
-			EditorImGui::SliderFloat("Physics Text Scale", &mPhysicsRenderSettings.textScale, 0.0001, 0.1f, "%.5f");
+			EditorUI::SliderFloat("Physics Text Scale", &mPhysicsRenderSettings.textScale, 0.0001, 0.1f, "%.5f");
 			ImGui::Checkbox("Physics Use Dynamic Scale", &mPhysicsRenderSettings.useTestDynamicScale);
 			float debug_gizmos_width = mDebugGizmos->GetLineWidth();
-			if (EditorImGui::SliderFloat("Debug Gizmos Width", &debug_gizmos_width, 0.01f, 4.0f))
+			if (EditorUI::SliderFloat("Debug Gizmos Width", &debug_gizmos_width, 0.01f, 4.0f))
 				mDebugGizmos->SetLineWidth(debug_gizmos_width);
 			ImGui::Checkbox("Draw World Axes at Origin", &mPhysicsRenderSettings.drawWorldAxes);
-			EditorImGui::DragFloat("World Axes Length", &mPhysicsRenderSettings.worldAxesLength, 0.01f, 150.0f);
+			EditorUI::DragFloat("World Axes Length", &mPhysicsRenderSettings.worldAxesLength, 0.01f, 150.0f);
 			ImGui::TreePop();
 		}
 
 		//ImGui::Spacing();
-		if (ImGui::TreeNodeEx("Lighting", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Lighting", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::Text("Directional Lighting");
 			DrawUI_LightingPanel();
 			ImGui::TreePop();
 		}
-		if (ImGui::TreeNodeEx("Shadow", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Shadow", EditorUI::kTreeNodeFlags))
 		{
 			auto* p_shadow_data = mRenderer.ShadowDataPtr();
-			EditorImGui::DragFloat("View Near offset", &p_shadow_data->zNearOffset, 0.005f);
-			EditorImGui::DragFloat("View Offset", &p_shadow_data->distance, 0.05f);
-			EditorImGui::SliderFloat("View frustum split depth", &p_shadow_data->split_depth, 0.01f, 1.0f);
+			EditorUI::DragFloat("View Near offset", &p_shadow_data->zNearOffset, 0.005f);
+			EditorUI::DragFloat("View Offset", &p_shadow_data->distance, 0.05f);
+			EditorUI::SliderFloat("View frustum split depth", &p_shadow_data->split_depth, 0.01f, 1.0f);
 			if (!p_shadow_data->HasOriginQuery())
 				ImGui::DragFloat3("View Origin", &p_shadow_data->origin[0], 0.1f);
 			else
 				ImGui::TextColored(ImVec4(0.1f, 0.8f, 0.2, 1.0f), "Dynamic Origin, try modifing offset instead");
+			ImGui::TreePop();
+		}
+
+		if (ImGui::TreeNodeEx("Scenarios Inspection", EditorUI::kTreeNodeFlags))
+		{
+			ScenariosInspectionPanel_Details();
 			ImGui::TreePop();
 		}
 	}
@@ -2960,7 +3077,7 @@ void Application::ApplicationDetailPanel(bool* p_open)
 void Application::DrawProfilePanel()
 {
 #if !defined(VX_ENABLE_PROFILING)
-	EditorImGui::TextColoured(vx::Colour::sRed, "define -VX_ENABLE_PROFILING");
+	EditorUI::TextColoured(vx::Colour::sRed, "define -VX_ENABLE_PROFILING");
 #else
 	using namespace vx::Profiler;
 
@@ -3036,7 +3153,7 @@ void Application::DrawProfilePanel()
 	if (ImGui::BeginTabItem("App Profile -WIP"))
 	{ 
 #if defined(TRACY_ENABLE) && VX_USE_TRACY
-		EditorImGui::TextColoured(vx::Colour::sRed, "Check Tracy Profile, TRACY_ENABLE defined and VX_USE_TRACY");
+		EditorUI::TextColoured(vx::Colour::sRed, "Check Tracy Profile, TRACY_ENABLE defined and VX_USE_TRACY");
 #else
 		///TO-DO: need to fix duplicate
 		if (ImGui::InputText("Filter", filter, 128))
@@ -3081,7 +3198,7 @@ void Application::DrawProfilePanel()
 		static float sample_max_range_min = 0.1f;
 		static float sample_max_range_max = 0.5f;
 		// Header / small stats table
-		//if (ImGui::TreeNodeEx("Profile Graph", EditorImGui::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
+		//if (ImGui::TreeNodeEx("Profile Graph", EditorUI::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen))
 		//{
 			// Reserve area and padding
 			ImVec2 avail = ImGui::GetContentRegionAvail();
@@ -3235,7 +3352,7 @@ void Application::DrawProfilePanel()
 	/*		ImGui::TreePop();
 		}*/
 
-		if (ImGui::TreeNodeEx("Settings", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Settings", EditorUI::kTreeNodeFlags))
 		{
 			ImGui::DragFloat("Padding", &padding, 0.1f, 0.0f, 5.0f);
 			ImGui::DragFloat("Right Label Padding", &right_label_padding, 1.0f, 140.0f, 500.0f);
@@ -3254,7 +3371,7 @@ void Application::DrawProfilePanel()
 	if (ImGui::BeginTabItem("Profile Timers --OLD"))
 	{
 #if defined(TRACY_ENABLE) && VX_USE_TRACY
-		EditorImGui::TextColoured(vx::Colour::sRed, "Check Tracy Profile, TRACY_ENABLE defined and VX_USE_TRACY");
+		EditorUI::TextColoured(vx::Colour::sRed, "Check Tracy Profile, TRACY_ENABLE defined and VX_USE_TRACY");
 #else
 		///TO-DO: need to fix duplicate
 		//static char filter[128] = "";
@@ -3273,7 +3390,7 @@ void Application::DrawProfilePanel()
 			profile_samples.clear();
 			return;
 		}
-		//bool profile_timer_open = ImGui::TreeNodeEx("Profile Timers", EditorImGui::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen);
+		//bool profile_timer_open = ImGui::TreeNodeEx("Profile Timers", EditorUI::kTreeNodeFlags | ImGuiTreeNodeFlags_DefaultOpen);
 
 		// Ensure sample buffers exist and update them from profiles
 		for (const auto& [name, data] : profiles)
@@ -3303,7 +3420,7 @@ void Application::DrawProfilePanel()
 	if (ImGui::BeginTabItem("Physics Stat --OLD"))
 	{
 		if (!mPhysicsWorld)
-			EditorImGui::TextColoured(vx::Colour::sRed, "Physics World does not exist");
+			EditorUI::TextColoured(vx::Colour::sRed, "Physics World does not exist");
 		else
 		{
 			ImGui::Text("Bodies count: %llu", static_cast<uint>(mPhysicsWorld->Bodies().size()));
@@ -3361,7 +3478,7 @@ void Application::DrawProfilePanel()
 			ImGui::Text("Total Deallocated Bytes: %llu Bytes [%.2f MB | %.2f MiB].",
 				_bytes, vx::ToMegabyte(_bytes), vx::ToMegabyte(_bytes));
 #else
-		EditorImGui::TextColoured(vx::Colour::sRed, "Enable PROFILE_MEM_ALLOC flag");
+		EditorUI::TextColoured(vx::Colour::sRed, "Enable PROFILE_MEM_ALLOC flag");
 #endif // PROFILE_MEM_ALLOC
 		ImGui::EndTabItem();
 	}
@@ -3372,7 +3489,7 @@ void Application::DrawProfilePanel()
 
 void Application::CreateNewCustomPhysicsObject()
 {
-	if (ImGui::Begin("CreateNewCustomPhysicsObject", &mPhysicsImGuiWindows.createNewCustomPhysicsObject))
+	if (ImGui::Begin("CreateNewCustomPhysicsObject", &mPhysicsUIPanels.createNewCustomPhysicsObject))
 	{
 		auto bind_texture_sampler = [](const ImDrawList* parent_list, const ImDrawCmd* cmd)
 			{
@@ -3501,7 +3618,7 @@ void Application::CreateNewCustomPhysicsObject()
 
 						ImGui::Text("Ragdoll Settings");
 						ImGui::DragFloat3("Position", &ragdoll_settings.position[0]);
-						EditorImGui::HelpInformation("Spawn from view with offset; uses camera position with forward and create new physics body offset from view value");
+						EditorUI::HelpInformation("Spawn from view with offset; uses camera position with forward and create new physics body offset from view value");
 						if (ImGui::Checkbox("Spawn from view with offset", &spawn_cam_pos))
 							ragdoll_settings.position = vx::Vec3::Zero();
 
@@ -3546,7 +3663,7 @@ void Application::CreateNewCustomPhysicsObject()
 						ImGui::Text("Jenga Settings");
 						ImGui::DragFloat3("Position", &jenga_settings.basePosition[0]);
 						static bool spawn_cam_pos = false;
-						EditorImGui::HelpInformation("Spawn from view with offset; uses camera position with forward and create new physics body offset from view value");
+						EditorUI::HelpInformation("Spawn from view with offset; uses camera position with forward and create new physics body offset from view value");
 						if (ImGui::Checkbox("Spawn from view with offset", &spawn_cam_pos))
 							jenga_settings.basePosition = vx::Vec3::Zero();
 
@@ -3729,10 +3846,10 @@ void Application::DrawUI_LightingPanel()
 	//static vx::Quat light_rotation = vx::Quat::LookRotation(light_dir, vx::Vec3::Up());
 	static vx::Vec3 angles = vx::RadToDeg(vx::Quat::LookRotation(light_dir, vx::Vec3::Up()).GetEulerAngles());
 	
-	if (ImGui::TreeNodeEx("Orientation", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Orientation", EditorUI::kTreeNodeFlags))
 	{
-		bool changed = EditorImGui::DragFloat("Pitch", &angles[0], 1.0f);
-		changed |= EditorImGui::DragFloat("Yaw", &angles[1], 1.0f);
+		bool changed = EditorUI::DragFloat("Pitch", &angles[0], 1.0f);
+		changed |= EditorUI::DragFloat("Yaw", &angles[1], 1.0f);
 		ImGui::Text("Roll: %d", angles.Z());
 		if (changed)
 		{
@@ -3747,7 +3864,7 @@ void Application::DrawUI_LightingPanel()
 		if (ImGui::BeginChild("Euler", ImVec2(ImGui::GetWindowWidth(), drag_pad_size.Y() + 75.0f)))
 		{
 			bool b = true;
-			if (EditorImGui::EditEulerWithDrag(angles, b, drag_pad_size, mRenderer.GetmDirLightDebugRTPtr()->GetAttachment(0)->GetBuffer()))
+			if (EditorUI::EditEulerWithDrag(angles, b, drag_pad_size, mRenderer.GetmDirLightDebugRTPtr()->GetAttachment(0)->GetBuffer()))
 			{
 				//from world rotation
 				vx::Quat q = vx::Quat::FromEulerAngle(vx::DegToRad(angles)).Normalised();
@@ -3756,12 +3873,12 @@ void Application::DrawUI_LightingPanel()
 		}
 		ImGui::EndChild();
 
-		if (ImGui::TreeNodeEx("Light Editor Gizmos setting", EditorImGui::kTreeNodeFlags))
+		if (ImGui::TreeNodeEx("Light Editor Gizmos setting", EditorUI::kTreeNodeFlags))
 		{
 			mLightDebugProps.dirty |= ImGui::DragFloat3("view position", &mLightDebugProps.viewPosition[0], 0.1f);
 			mLightDebugProps.dirty |= ImGui::DragFloat3("view target", &mLightDebugProps.viewTarget[0], 0.1f);
-			mLightDebugProps.dirty |= EditorImGui::SliderFloat("arrow width", &mLightDebugProps.arrowWidth, 0.0f, 1.0f);
-			mLightDebugProps.dirty |= EditorImGui::SliderFloat("arrow height", &mLightDebugProps.arrowHeight, 0.0f, 1.0f);
+			mLightDebugProps.dirty |= EditorUI::SliderFloat("arrow width", &mLightDebugProps.arrowWidth, 0.0f, 1.0f);
+			mLightDebugProps.dirty |= EditorUI::SliderFloat("arrow height", &mLightDebugProps.arrowHeight, 0.0f, 1.0f);
 			ImGui::Checkbox("Enable Draw", &mLightDebugProps.enableDraw);
 			ImGui::TreePop();
 		}
@@ -3963,42 +4080,110 @@ void Application::PhysicsInteraction()
 
 void Application::DrawHelpWindow(bool& p_open)
 {
-	if (ImGui::Begin("Help", &p_open))
+	if(mUI.BeginPanel("Controls", &p_open, 400, 480, 
+		EditorUI::EPanelScreenAnchor::Center, 
+		vx::Vec2(1.0f), ImGuiWindowFlags_NoCollapse))
+	//if (ImGui::Begin("Help", &p_open))
 	{
 		ImGui::SeparatorText("Inputs & Shortcuts");
-		ImGui::Text("F11 to toggle full screen, Esc to exit full screen");
-		ImGui::Text("WASD basic camera navigation");
-		ImGui::Text("Q to move camera up");
-		ImGui::Text("E to move camera down");
-		ImGui::Text("Ctrl + N: Open Create New Physics Body window");
-		ImGui::Text("Ctrl + C: Open Apply External Effect on Dynamic Body window");
-		ImGui::Text("Space Bar to spawn physics body based on setting");
-		ImGui::Text("Ctrl + R to Reload physics world");
-		ImGui::Text("P or Pause button to Pause/Resume simulation");
-		ImGui::Text("F10 button to Single Step simulation WIP");
-		ImGui::Text("Left Shift + F10 button to N Step simulation WIP");
-		ImGui::Text("Ctrl + V to toggle V-Sync");
-		ImGui::Text("Mouse Right click to toggle cursor lock");
+		if (ImGui::BeginTable("##HelpGrid", 2,
+			ImGuiTableFlags_None | ImGuiTableFlags_SizingFixedFit))
+		{
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("F1");
+			ImGui::TableNextColumn();
+			ImGui::Text("Toggle Help");
 
-		StackString dir_light_controls("DIR LIGHT CTRLS:\n");
-		dir_light_controls << "[I]/[K]: Move Light / Backward(Z - Axis)\n";
-		dir_light_controls << "[J]/[L]: Move Light/Right (X-Axis)\n";
-		dir_light_controls << "[U]/[O]: Elevate Light Up/Down (Y-Axis)\n";
-		ImGui::Text(dir_light_controls.Data());
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Tab");
+			ImGui::TableNextColumn();
+			ImGui::Text("Toggle UI");
 
-		ImGui::SeparatorText("Util");
-		ImGui::Text("O to increase spawn impulse by 250 Ns : NEED NEED UPDATE");
-		ImGui::Text("N to decrease spawn impulse by 250 Ns : NEED NEED UPDATE");
-		ImGui::Spacing();
-		ImGui::Text("Left Shift + N: move spawn NEED NEED UPDATE");
-		ImGui::Text("Left Arrow/Num Keypad 4: move spawn right");
-		ImGui::Text("Right Arrow/Num Keypad 6: move spawn left");
-		ImGui::Text("Down Arrow/Num Keypad 2: move spawn backward");
-		ImGui::Text("Up Arrow/Num Keypad 8: move spawn forward");
-		ImGui::Text("Num Keypad 7: move spawn up");
-		ImGui::Text("Num Keypad 9: move spawn down");
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("F11");
+			ImGui::TableNextColumn();
+			ImGui::Text("Toggle full screen");
 
-		
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Esc");
+			ImGui::TableNextColumn();
+			ImGui::Text("Exit full screen");
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("WASD");
+			ImGui::TableNextColumn();
+			ImGui::Text("Camera navigation");
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Q|E");
+			ImGui::TableNextColumn();
+			ImGui::Text("Camera up|down");
+
+			ImGui::TableNextRow();
+			ImGui::Spacing();
+			ImGui::TableNextRow();
+			ImGui::Spacing();
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Ctrl + N");
+			ImGui::TableNextColumn();
+			ImGui::Text("Open Create Body Panel");
+
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Space");
+			ImGui::TableNextColumn();
+			ImGui::Text("Spawn body");
+
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Ctrl + R");
+			ImGui::TableNextColumn();
+			ImGui::Text("Reset/Reload");
+
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("P/Pause");
+			ImGui::TableNextColumn();
+			ImGui::Text("Pause/Resume");
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("F10");
+			ImGui::TableNextColumn();
+			ImGui::Text("Single Step");
+
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Left Shift + F10");
+			ImGui::TableNextColumn();
+			ImGui::Text("Multi N Step");
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Ctrl + V");
+			ImGui::TableNextColumn();
+			ImGui::Text("Toggle V-Sync");
+
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Mouse Right click");
+			ImGui::TableNextColumn();
+			ImGui::Text("Toggle cursor lock");
+
+			ImGui::EndTable();
+		}
 	}
 	ImGui::End();
 }
@@ -4030,11 +4215,11 @@ void Application::DrawBVHNodesOverlay(bool& open)
 
 		if (ImGui::TreeNode("Setting"))
 		{
-			EditorImGui::DragFloat("node width", &node_width, 0.1f, 10.0f, 300.0f);
-			EditorImGui::DragFloat("node height", &node_height, 0.1f, 10.0f, 200.0f);
-			EditorImGui::DragFloat("vertical spacing", &vertical_spacing, 0.1f, 10.0f, 300.0f);
-			EditorImGui::DragFloat("horizontal_spacing", &horizontal_spacing, 0.1f, 10.0f, 300.0f);
-			EditorImGui::DragFloat("root offset y", &root_offset_y, 0.1f, 0.0f, 10.0f);
+			EditorUI::DragFloat("node width", &node_width, 0.1f, 10.0f, 300.0f);
+			EditorUI::DragFloat("node height", &node_height, 0.1f, 10.0f, 200.0f);
+			EditorUI::DragFloat("vertical spacing", &vertical_spacing, 0.1f, 10.0f, 300.0f);
+			EditorUI::DragFloat("horizontal_spacing", &horizontal_spacing, 0.1f, 10.0f, 300.0f);
+			EditorUI::DragFloat("root offset y", &root_offset_y, 0.1f, 0.0f, 10.0f);
 			ImGui::TreePop();
 		}
 
@@ -4263,7 +4448,7 @@ void Application::DrawApplyExternalEffectDynamicBody(bool* p_open)
 	static ESelectType type_select;
 
 	static bool new_select = true;
-	new_select |= EditorImGui::Combo("Selection Config", type_select, Select_Bodies_Type_Names);
+	new_select |= EditorUI::Combo("Selection Config", type_select, Select_Bodies_Type_Names);
 	
 	static int n_bodies = 1;
 	static int last_n_bodies = 1;
@@ -4336,9 +4521,9 @@ void Application::DrawApplyExternalEffectDynamicBody(bool* p_open)
 	static EAxis axis = EAxis::Right;
 
 	int enum_v = int(force_impluse_mode);
-	EditorImGui::Combo("Apply Force Impluse Mode", force_impluse_mode, ApplyForceImpluseMode);
+	EditorUI::Combo("Apply Force Impluse Mode", force_impluse_mode, ApplyForceImpluseMode);
 	if (force_impluse_mode != EForceImpluseMode::Directional)
-		EditorImGui::Combo("Axis Mode Names", axis, Axis_Mode_Names);
+		EditorUI::Combo("Axis Mode Names", axis, Axis_Mode_Names);
 
 	using Drag_Value_Edit = bool(*)(const char*, float*, float, float, float, const char*, int);
 
@@ -4515,7 +4700,7 @@ void Application::CreateNewPhysicsBodyWindow()
 			ImGui::DragFloat("Initial Velocity", &mNewPhyObjectSettings.initialLinearVelocity);
 			if(mNewPhyObjectSettings.spawnFromView)
 			{
-				EditorImGui::HelpInformation("Spawns at origin");
+				EditorUI::HelpInformation("Spawns at origin");
 				ImGui::SameLine();
 			}
 			ImGui::Checkbox("Shoot from view", &mNewPhyObjectSettings.spawnFromView);
@@ -4576,7 +4761,7 @@ void Application::DrawUIRendererResourcesPanel(bool* p_open)
 {
 	vx::Vec2 pos;
 	vx::Vec2 size;
-	mUI.ResolvePanelPosSize(450, 900, pos, size, EditorImGui::EPanelScreenAnchor::TopLeft, 1.0f / vx::Vec2(4.0f, 2.0f));
+	mUI.ResolvePanelPosSize(450, 900, pos, size, EditorUI::EPanelScreenAnchor::TopLeft, 1.0f / vx::Vec2(4.0f, 2.0f));
 	ImGui::SetNextWindowPos(ImVec2(pos[0], pos[1]), ImGuiCond_Appearing);
 	ImGui::SetNextWindowSize(ImVec2(size[0], size[1]), ImGuiCond_Appearing);
 
@@ -4628,7 +4813,6 @@ void Application::DrawUIRendererResourcesPanel(bool* p_open)
 
 		ImDrawList* dl = ImGui::GetWindowDrawList();
 		dl->AddCallback(bind_texture_sampler, &handle);
-
 
 		std::function<void(const Texture* tex, vx::uint32 item_table_no)> draw_texture =
 			[&](const Texture* tex, vx::uint32 item_table_no)
@@ -4704,8 +4888,8 @@ void Application::PhysicsIslandCoordImGuiWindow()
 
 	const float half_screen_sizeX = float(mWindow.Width()) * 0.75f;
 	const float half_screen_sizeY = float(mWindow.Height()) * 0.5f;
-	if (mUI.BeginPanel("Island Coordinator WIP", &mPhysicsImGuiWindows.islandCoord,
-		half_screen_sizeX, half_screen_sizeY, EditorImGui::EPanelScreenAnchor::BottomLeft,
+	if (mUI.BeginPanel("Island Coordinator WIP", &mPhysicsUIPanels.islandCoord,
+		half_screen_sizeX, half_screen_sizeY, EditorUI::EPanelScreenAnchor::BottomLeft,
 		vx::Vec2(0.75f, 0.5f), ImGuiWindowFlags_NoBackground))
 	{
 		ImGui::Text("Bodies Active count: %d", mPhysicsWorld->GetBodyManager().NumActiveBodies());
@@ -4743,7 +4927,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 	//	ImGui::Text("%d | %d | %d", i, body_link_idxs[i].load(), island_idxs[i]);
 	//}
 
-	if (ImGui::TreeNodeEx("Bodies With Island", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Bodies With Island", EditorUI::kTreeNodeFlags))
 	{
 		if (ImGui::BeginTable("table1", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 		{
@@ -4774,7 +4958,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 	}
 
 
-	if (ImGui::TreeNodeEx("Bodies With Island Sorted", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Bodies With Island Sorted", EditorUI::kTreeNodeFlags))
 	{
 		StackString txt("If constraints manifold consistency is enabled;\n");
 		txt << "And bodies is almost at rest attemping to go to sleep \n";
@@ -4853,7 +5037,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 
 
 
-	if (ImGui::TreeNodeEx("Contact Island", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Contact Island", EditorUI::kTreeNodeFlags))
 	{
 		if (ImGui::BeginTable("table3", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 		{
@@ -4892,7 +5076,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 
 
 
-	if (ImGui::TreeNodeEx("Contact and Body Island with Island sort", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Contact and Body Island with Island sort", EditorUI::kTreeNodeFlags))
 	{
 		if (ImGui::BeginTable("table4", 7, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 		{
@@ -4969,7 +5153,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 	}
 
 
-	if (ImGui::TreeNodeEx("Non Contact constraint Island", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Non Contact constraint Island", EditorUI::kTreeNodeFlags))
 	{
 		if (ImGui::BeginTable("table5", 3, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
 		{
@@ -5024,7 +5208,7 @@ void Application::PhysicsIslandCoordBuilderTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	/// Islands Constraint Count
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx("Islands Constraint Count", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Islands Constraint Count", EditorUI::kTreeNodeFlags))
 	{
 		vx::uint32 island_count = mPhysicsWorld->GetIslandCoordinator()->IslandCount();
 
@@ -5150,7 +5334,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	/// Per Island Splitted Bodies
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx("Per Island Splitted Bodies", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Per Island Splitted Bodies", EditorUI::kTreeNodeFlags))
 	{
 		ImGui::Text("Note: Static Bodies are ignored during binning");
 
@@ -5261,7 +5445,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	/// Per Island Contact Constraint Binned Group (Graph Coloured)
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx("Per Island Contact Constraint Binned Group (Graph Coloured)", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Per Island Contact Constraint Binned Group (Graph Coloured)", EditorUI::kTreeNodeFlags))
 	{
 		static constexpr uint32 k_total_max_bin = vx::IslandCoordinator::Splitter::kMaxBin + 1;
 		if (ImGui::BeginTable("table1", k_total_max_bin + 1, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
@@ -5367,7 +5551,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	/// Per Island Non Contact Constraint Binned Group (Graph Coloured)
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx("Per Island Non Contact Constraint Binned Group (Graph Coloured)", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx("Per Island Non Contact Constraint Binned Group (Graph Coloured)", EditorUI::kTreeNodeFlags))
 	{
 		static constexpr uint32 k_total_max_bin = vx::IslandCoordinator::Splitter::kMaxBin + 1;
 		if (ImGui::BeginTable("table1", k_total_max_bin + 1, ImGuiTableFlags_Borders | ImGuiTableFlags_RowBg))
@@ -5473,7 +5657,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	/// Per Island Constraint Bins with Batches
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx(" Per Island Constraint Bins with Batches (Workload balancing)", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx(" Per Island Constraint Bins with Batches (Workload balancing)", EditorUI::kTreeNodeFlags))
 	{
 		ImGui::Text("Bin constraint batch size: %d", mPhysicsWorld->GetIslandCoordinator()->GetSplitter().kBatchSize);
 
@@ -5594,7 +5778,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 	/////////////////////////////////////////////////////////////////////////////////////
 	///  Per Island Constraint Bins Solver body index
 	/////////////////////////////////////////////////////////////////////////////////////
-	if (ImGui::TreeNodeEx(" Per Island Constraint Bins Solver body index", EditorImGui::kTreeNodeFlags))
+	if (ImGui::TreeNodeEx(" Per Island Constraint Bins Solver body index", EditorUI::kTreeNodeFlags))
 	{
 		if (mPhysicsWorld->GetIslandCoordinator()->GetSplitter().ConstraintIndicesBuffer() == nullptr)
 			ImGui::TextColored(ImVec4(1, 0, 0, 1), "Missing Debug information for island splitter constriant indices buffer; Enable flag VX_DEBUG_ISLAND_SPLITTER");
@@ -5729,7 +5913,7 @@ void Application::PhysicsIslandCoordSplitterTab()
 
 void Application::SolverBodyPhysicsBodyWindow()
 {
-	if (ImGui::Begin("SolverBodyPhysicsBodyWindow", &mPhysicsImGuiWindows.showSolverBodyPhysicsBodyWindow))
+	if (ImGui::Begin("SolverBodyPhysicsBodyWindow", &mPhysicsUIPanels.showSolverBodyPhysicsBodyWindow))
 	{
 		for (uint32 sb_idx = 0; sb_idx < mPhysicsWorld->GetConstraintSolver()->GetBodiesCount(); ++sb_idx)
 		{
@@ -5742,7 +5926,7 @@ void Application::SolverBodyPhysicsBodyWindow()
 
 void Application::CreateConstraintsWindow()
 {
-	if (ImGui::Begin("Create Constraints Window", &mPhysicsImGuiWindows.createConstraints))
+	if (ImGui::Begin("Create Constraints Window", &mPhysicsUIPanels.createConstraints))
 	{
 		ImGui::Text("Using mouse hover to capture bodies");
 		
@@ -5838,115 +6022,4 @@ void Application::CreateConstraintsWindow()
 	ImGui::End();
 }
 
-void Application::ApplyForceToSelectedBody()
-{
-
-	if (ImGui::Begin("Apply Force To Selected Body"))
-	{
-
-		ImGui::Text("Using mouse hover to capture bodies, witch Ctrl + A");
-
-
-		static vx::BodyID selected_body;
-		if (mCurrScenario && mCurrScenario->mMouseHoveringBody.IsValid())
-		{
-			ImGui::Text("Current Hovered Body: %d", mCurrScenario->mMouseHoveringBody.ID());
-
-			bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
-			if (ctr_pressed && Input::GetKey(IKeyCode::A))
-				selected_body = mCurrScenario->mMouseHoveringBody;
-		}
-		
-		static IKeyCode key_code = IKeyCode::KP_2;
-		int v = (int)InputSystem::KeyCodeToIndex(key_code);
-		if (ImGui::Combo("Keycodes", &v, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size()))
-			key_code = InputSystem::KeyIndexToCode(IKeyIndex(v));
-	
-		ImGui::Text("Use Ctrl + %s, to apply force", InputSystem::IKeyCodeNames[v].data());
-
-		ImGui::Text("Use Ctrl + ");
-		ImGui::SameLine();
-		int apply_impulse_keyidx = (int)InputSystem::KeyCodeToIndex(IKeyCode::B);
-		ImGui::Combo("for Impulse", &apply_impulse_keyidx, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size());
-		ImGui::Text("Use Ctrl + ");
-		ImGui::SameLine();
-		int apply_force_keyidx = (int)InputSystem::KeyCodeToIndex(IKeyCode::M);
-		ImGui::Combo("for Force", &apply_force_keyidx, InputSystem::IKeyCodeNamesChar.data(), InputSystem::IKeyCodeNamesChar.size());
-	
-
-		ImGui::Separator();
-
-		ImGui::Text("Body A: %d", selected_body);
-
-		bool ctr_pressed = Input::GetKey(IKeyCode::RightControl) || Input::GetKey(IKeyCode::LeftControl);
-
-		if (selected_body.IsValid())
-		{
-			static vx::Vec3 apply_dir = -vx::Vec3::Forward();
-
-			ImGui::SliderFloat3("Dir", &apply_dir[0], -1.0f, 1.0f);
-			if (ImGui::DragFloat3("Dir", &apply_dir[0], 0.1f, - 1.0f, 1.0f))
-				apply_dir = vx::Vec3::Clamp(apply_dir, vx::Vec3(-1.0f), vx::Vec3(1.0f));
-			static bool use_body_frame_forward = false;
-			ImGui::Checkbox("Use Body Frame Forward", &use_body_frame_forward);
-			static bool invert_fwd = false;
-			ImGui::Checkbox("Invert forward", &invert_fwd);
-
-			ImGui::Spacing();
-
-			vx::Vec3 body_fwd;
-			if(use_body_frame_forward)
-			{
-				auto& body = mPhysicsWorld->GetBodyManager().GetBody(selected_body);
-				vx::Vec3 body_fwd = (invert_fwd) ? -body.Orientation().RotateAxisZ() : body.Orientation().RotateAxisZ();
-
-				apply_dir = body_fwd;
-
-				char buff[64];
-				body_fwd.ToChar(buff, 64);
-				ImGui::Text("Body Frame Forward: %s", buff);
-			}
-
-			mSelectedBodyToApplyForceFwd = apply_dir;
-
-
-			static float impulse = 1000.0f;
-			EditorImGui::HelpInformation("Good use case: bullet impact, explosions, jumping, jolt body, knockback");
-			ImGui::DragFloat("Impluse", &impulse);
-			if (ImGui::Button("Apply Linear Impluse"))
-				mPhysicsWorld->ApplyImpulse(selected_body, apply_dir * impulse);
-
-			ImGui::Separator();
-			static float force = 1000.0f * 40.0f;
-
-			ImGui::PushID(&force);
-			EditorImGui::HelpInformation("Good use case: thrusters, pushing etc");
-			ImGui::DragFloat("Force", &force);
-			if (ImGui::Button("Add force"))
-				mPhysicsWorld->AddForce(selected_body, apply_dir * force);
-			ImGui::PopID();
-
-
-			if (ctr_pressed)
-			{
-				if (Input::GetKey(InputSystem::KeyIndexToCode(IKeyIndex(apply_impulse_keyidx))))
-					mPhysicsWorld->ApplyImpulse(selected_body, apply_dir * impulse);
-
-
-				if (Input::GetKey(InputSystem::KeyIndexToCode(IKeyIndex(apply_force_keyidx))))
-					mPhysicsWorld->AddForce(selected_body, apply_dir * force);
-
-			}
-
-			ImGui::Spacing();
-			ImGui::SeparatorText("Modify Selected Body");
-			mUI.DrawBodyOverlayDetails(selected_body, mPhysicsWorld);
-		}
-		mSelectedBodyToApplyForce = selected_body;
-
-
-
-	}
-	ImGui::End();
-}
 

@@ -199,6 +199,7 @@ namespace vx
 		template<typename T>
 		void CreateConstraintsT(const T* constraint_Ts, uint32 count) { return mConstraintCoordinator.CreateT(constraint_Ts, count); }
 		void AddConstraint(Constraint* constraint) { return mConstraintCoordinator.Add(&constraint, 1); }
+		void AddConstraints(Constraint** constraints, uint32 count) { return mConstraintCoordinator.Add(constraints, count); }
 		void RemoveConstraint(Constraint* constraint) { return mConstraintCoordinator.Remove(&constraint, 1); }
 		void RemoveConstraints(Constraint** constraints, uint32 count) { return mConstraintCoordinator.Remove(constraints, count); }
 
@@ -237,7 +238,7 @@ namespace vx
 			const RenderSettings& setting, const Colour& c = Colour::sMagenta);
 		void OnDrawBodies(Renderer* draw_renderer, const RenderSettings& setting);
 		void OnDebugDraw(DebugGizmosRenderer* debug_renderer);
-		void QuickDebugDrawInertia(DebugGizmosRenderer* debug_renderer);
+		void DrawBodyInertia(DebugGizmosRenderer* debug_renderer);
 
 
 	private:

@@ -1,7 +1,7 @@
 #include "PendulumScenario.h"
 #include <external/imgui/imgui.h>
 
-#include "SampleFramework/EditorImGui.h"
+#include "SampleFramework/EditorUI.h"
 
 #include "Vortrix/PhysicsWorld.h"
 #include "Vortrix/Dynamics/Body/Body.h"
@@ -411,50 +411,50 @@ void AnimCurveWindowUI(/*AnimCurve& curve,*/ bool* p_open)
 
 void PendulumScenario::OnUI()
 {
-
+    
     //if (ImGui::Begin("Simulation Validation"))
     //{
 
     //    ImGui::End();
     //}
 
-    bool open = true;
-    AnimCurveWindowUI(&open);
+ //   bool open = true;
+ //   AnimCurveWindowUI(&open);
 
-	if (ImGui::Begin("Pendulum Scenario"))
-	{
-        if (test_sphere_body_id.IsValid())
-        {
-            static int last_step_validation = 0;// = mPhysicsWorld->Context()->mStepIndex;
+	//if (ImGui::Begin("Pendulum Scenario"))
+	//{
+ //       if (test_sphere_body_id.IsValid())
+ //       {
+ //           static int last_step_validation = 0;// = mPhysicsWorld->Context()->mStepIndex;
 
-            float physics_dt = mPhysicsWorld->Context()->mDeltaTime;
-            vx::Body* body = &mPhysicsWorld->GetBodyManager().GetBody(test_sphere_body_id);
+ //           float physics_dt = mPhysicsWorld->Context()->mDeltaTime;
+ //           vx::Body* body = &mPhysicsWorld->GetBodyManager().GetBody(test_sphere_body_id);
 
-            vx::Vec3 body_pos = body->Position();
+ //           vx::Vec3 body_pos = body->Position();
 
-            ///chanvge in position
-            vx::Vec3 delta_pos = body_pos - old_pos;
-            int past_step_count = mPhysicsWorld->Context()->mStepIndex - last_step_validation;
-            
-            static vx::Vec3 predict_vel = vx::Vec3::Zero();
-            if(past_step_count > 0)
-                predict_vel = delta_pos / (physics_dt * past_step_count);
-            float predict_speed = predict_vel.Length();
+ //           ///chanvge in position
+ //           vx::Vec3 delta_pos = body_pos - old_pos;
+ //           int past_step_count = mPhysicsWorld->Context()->mStepIndex - last_step_validation;
+ //           
+ //           static vx::Vec3 predict_vel = vx::Vec3::Zero();
+ //           if(past_step_count > 0)
+ //               predict_vel = delta_pos / (physics_dt * past_step_count);
+ //           float predict_speed = predict_vel.Length();
 
-            ///new state 
-            old_pos = body_pos;
-            last_step_validation = mPhysicsWorld->Context()->mStepIndex;
+ //           ///new state 
+ //           old_pos = body_pos;
+ //           last_step_validation = mPhysicsWorld->Context()->mStepIndex;
 
-            if (ImGui::DragFloat3("Body Position", &body_pos[0], 0.1f))
-                body->SetPosition(body_pos);
+ //           if (ImGui::DragFloat3("Body Position", &body_pos[0], 0.1f))
+ //               body->SetPosition(body_pos);
 
-            float speed = body->LinearVelocity().Length();
-            ImGui::Text("Predicted Speed: %.2fms", predict_speed);
-            ImGui::Text("Speed: %.2fms", speed);
-            ImGui::Text("Acceleration: %.2fm/s/s", speed / physics_dt);
-        }
-        else
-            ImGui::TextColored(ImVec4(1, 0, 0, 1), "Invalid body id");
-		ImGui::End();
-	}
+ //           float speed = body->LinearVelocity().Length();
+ //           ImGui::Text("Predicted Speed: %.2fms", predict_speed);
+ //           ImGui::Text("Speed: %.2fms", speed);
+ //           ImGui::Text("Acceleration: %.2fm/s/s", speed / physics_dt);
+ //       }
+ //       else
+ //           ImGui::TextColored(ImVec4(1, 0, 0, 1), "Invalid body id");
+	//	ImGui::End();
+	//}
 }

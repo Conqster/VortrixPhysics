@@ -1,4 +1,4 @@
-#include "EditorImgui.h"
+#include "EditorUI.h"
 
 #include <GL/glew.h>
 #include <glfw/glfw3.h>
@@ -27,47 +27,47 @@
 //
 //}
 
-vx::Colour EditorImGui::kAccent = vx::Colour(0.3f, 0.75f, 0.8f, 1.0f);
-vx::Colour EditorImGui::kSecondaryAccent = vx::Colour(.102f, .42f, .478f, 1.0f);
-ImGuiTreeNodeFlags EditorImGui::kTreeNodeFlags = ImGuiTreeNodeFlags_Framed;
+vx::Colour EditorUI::kAccent = vx::Colour(0.3f, 0.75f, 0.8f, 1.0f);
+vx::Colour EditorUI::kSecondaryAccent = vx::Colour(.102f, .42f, .478f, 1.0f);
+ImGuiTreeNodeFlags EditorUI::kTreeNodeFlags = ImGuiTreeNodeFlags_Framed;
 
 
-EditorImGui::ScopePushItemWidth::ScopePushItemWidth(float width)
+EditorUI::ScopePushItemWidth::ScopePushItemWidth(float width)
 {
 	ImGui::PushItemWidth(width);
 }
 
-EditorImGui::ScopePushItemWidth::~ScopePushItemWidth()
+EditorUI::ScopePushItemWidth::~ScopePushItemWidth()
 {
 	ImGui::PopItemWidth();
 }
 
 
-bool EditorImGui::SliderInt(const char* label, int* v, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
+bool EditorUI::SliderInt(const char* label, int* v, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
 {
 	ScopePushItemWidth size(kSliderWidth);
 	return ImGui::SliderScalar(label, ImGuiDataType_S32, v, &v_min, &v_max, format, flags);
 }
 
-bool EditorImGui::SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
+bool EditorUI::SliderFloat(const char* label, float* v, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
 {
 	ScopePushItemWidth size(kSliderWidth);
 	return ImGui::SliderScalar(label, ImGuiDataType_Float, v, &v_min, &v_max, format, flags);
 }
 
-bool EditorImGui::DragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
+bool EditorUI::DragFloat(const char* label, float* v, float v_speed, float v_min, float v_max, const char* format, ImGuiSliderFlags flags)
 {
 	ScopePushItemWidth size(kSliderWidth);
 	return ImGui::DragScalar(label, ImGuiDataType_Float, v, v_speed, &v_min, &v_max, format, flags);
 }
 
-bool EditorImGui::DragInt(const char* label, int* v, float v_speed, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
+bool EditorUI::DragInt(const char* label, int* v, float v_speed, int v_min, int v_max, const char* format, ImGuiSliderFlags flags)
 {
 	ScopePushItemWidth size(kSliderWidth);
 	return ImGui::DragScalar(label, ImGuiDataType_S32, v, v_speed, &v_min, &v_max, format, flags);
 }
 
-void EditorImGui::TextColoured(const Colour col, const char* fmt, ...)
+void EditorUI::TextColoured(const Colour col, const char* fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -76,7 +76,7 @@ void EditorImGui::TextColoured(const Colour col, const char* fmt, ...)
 	va_end(args);
 }
 
-void EditorImGui::TextColourWrapped(const vx::Colour col, const char* fmt, ...)
+void EditorUI::TextColourWrapped(const vx::Colour col, const char* fmt, ...)
 {
 	va_list args;
 	va_start(args, fmt);
@@ -86,9 +86,10 @@ void EditorImGui::TextColourWrapped(const vx::Colour col, const char* fmt, ...)
 	va_end(args);
 }
 
-void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, vx::Vec2& o_pos, vx::Vec2& o_size, 
+void EditorUI::ResolvePanelPosSize(float target_width, float target_height, vx::Vec2& o_pos, vx::Vec2& o_size, 
 	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen)
 {
+	VX_VARIABLE_PROFILE_FUNCTION();
 	VX_ASSERT(!mFrameWorkableScreenSize.IsZero());
 
 	float frame_screen_width = mFrameWorkableScreenSize[0];
@@ -119,16 +120,16 @@ void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, v
 	/// top right consider primary simulation panel
 	/// use the approraite corrd 
 	/// for this instamce top right 
-	/// then consider the appropriate panel 
-	vx::Vec2 target_panel_pos(1550.0f, 35.0f);//its top left
+	///// then consider the appropriate panel 
+	//vx::Vec2 target_panel_pos(1550.0f, 35.0f);//its top left
 	//pos_offset[0] -= vx::VxAbs(target_panel_pos[0] - frame_screen_width);
 
-	const bool consider_target_panel = true;
+	const bool consider_target_panel = false;
 
 	///for now, target panel is to the right (primary panel)
 	if (consider_target_panel)
 	{
-		frame_screen_width = vx::VxMin(target_panel_pos[0], frame_screen_width);
+		frame_screen_width = vx::VxMin(mFramePrimaryPanelPos[0], frame_screen_width);
 
 	}
 
@@ -144,6 +145,9 @@ void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, v
 		pos_offset = vx::Vec2(screen_padding, disp_alongY);
 	}
 	break;
+	case EPanelScreenAnchor::HackTopRightConsiderPrimaryPanel:
+		frame_screen_width = vx::VxMin(mFramePrimaryPanelPos[0], frame_screen_width);
+
 	case EPanelScreenAnchor::TopRight:
 	{
 		float disp_alongX = (frame_screen_width)+ // move point downward along X
@@ -155,6 +159,14 @@ void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, v
 		vx::Vec2 disp = vx::Vec2(frame_screen_width, frame_screen_height - mFrameMenuItemY) - (vx::Vec2(screen_padding) + panel_size);
 		pos_offset = disp;
 		break;
+	case EPanelScreenAnchor::Center:
+	{
+		vx::Vec2 win_center = vx::Vec2(frame_screen_width, frame_screen_height) * 0.5f;
+		//vx::Vec2 disp = vx::Vec2(frame_screen_width, frame_screen_height - mFrameMenuItemY) - (vx::Vec2(screen_padding) + panel_size);
+		vx::Vec2 disp = win_center - (vx::Vec2(screen_padding) + panel_size * 0.5f);
+		pos_offset = disp;
+	}
+		break;
 	}
 
 	vx::Vec2 panel_pos = workable_pos_origin + pos_offset;
@@ -163,50 +175,82 @@ void EditorImGui::ResolvePanelPosSize(float target_width, float target_height, v
 	o_size = panel_size;
 }
 
-bool EditorImGui::BeginPanel(const char* name, bool* p_open, ImGuiWindowFlags flags)
+bool EditorUI::BeginPanel(const char* name, bool* p_open, ImGuiWindowFlags flags)
 {
 	return ImGui::Begin(name, p_open, flags);
 }
 
-bool EditorImGui::BeginPanel(const char* name, bool* p_open, float target_width, float target_height,
-	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen, ImGuiWindowFlags flags)
+bool EditorUI::BeginPanel_Cond(const char* name, bool* p_open, float target_width, float target_height,
+	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen, ImGuiWindowFlags flags, ImGuiCond cond)
 {
-
 	vx::Vec2 pos;
 	vx::Vec2 size;
 	ResolvePanelPosSize(target_width, target_height, pos, size, screen_anchor, max_ratio_screen);
-	ImGui::SetNextWindowPos(ImVec2(pos[0], pos[1]), ImGuiCond_Appearing);
-	ImGui::SetNextWindowSize(ImVec2(size[0], size[1]), ImGuiCond_Appearing);
+	ImGui::SetNextWindowPos(ImVec2(pos[0], pos[1]), cond);
+	ImGui::SetNextWindowSize(ImVec2(size[0], size[1]), cond);
 
 	return ImGui::Begin(name, p_open, flags);
 }
 
-void EditorImGui::EndPanel()
+void EditorUI::EndPrimaryPanel()
+{
+	VX_ASSERT(mBeginPrimaryPanel);
+
+	mBeginPrimaryPanel = false;
+	ImVec2 pos = ImGui::GetWindowPos();
+	mFramePrimaryPanelPos.SetXY(pos.x, pos.y);
+	ImVec2 size = ImGui::GetWindowSize();
+	mFramePrimaryPanelSize.SetXY(size.x, size.y);
+
+	ImGui::End();
+}
+
+bool EditorUI::BeginPanel(const char* name, bool* p_open, float target_width, float target_height,
+	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen, ImGuiWindowFlags flags)
+{
+	return BeginPanel_Cond(name, p_open, target_width, target_height, screen_anchor, max_ratio_screen, flags, ImGuiCond_Appearing);
+}
+
+void EditorUI::EndPanel()
 {
 	ImGui::End();
 }
 
-void EditorImGui::Initialise(GLFWwindow* glfw_win)
+bool EditorUI::BeginPrimaryPanel(const char* name, bool* p_open, float target_width, float target_height,
+	EPanelScreenAnchor screen_anchor, vx::Vec2 max_ratio_screen, ImGuiWindowFlags flags)
+{
+	VX_ASSERT(!mBeginPrimaryPanel);
+	mBeginPrimaryPanel = true;
+	return BeginPanel_Cond(name, p_open, target_width, target_height, screen_anchor, max_ratio_screen, flags, ImGuiCond_Always);
+}
+
+
+
+void EditorUI::Initialise(GLFWwindow* glfw_win)
 {
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO();
-	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-
 
 	//ImGui Renderer
 	ImGui_ImplGlfw_InitForOpenGL(glfw_win, true);
 	ImGui_ImplOpenGL3_Init("#version 400");
 
-	io.Fonts->AddFontFromFileTTF("assets/fonts/Inter_18pt-Regular.ttf", 18.0f);
+	float x_scale, y_scale;
+	glfwGetWindowContentScale(glfw_win, &x_scale, &y_scale);
 
+	
+	///TO-DO: update the font an ui scale, when swicthing windo between monitors with different DPIs 
+	io.Fonts->AddFontFromFileTTF("assets/fonts/Inter_18pt-Regular.ttf", std::roundf(15.0f * x_scale));
 
 	ImGuiStyle* style = &ImGui::GetStyle();
+	if (x_scale != 0.0f)
+		style->ScaleAllSizes(x_scale);
+
+
 	style->WindowRounding = 4.0f;
 	style->FrameRounding = 5.0f;
 	style->GrabRounding = 6.0f;
-
-	//style->ScaleAllSizes()
 
 	////Style 
 	style->WindowPadding = ImVec2(10.0f, 10.0f);
@@ -289,54 +333,56 @@ void EditorImGui::Initialise(GLFWwindow* glfw_win)
 }
 
 
-void EditorImGui::BeginNewFrame(float screen_width, float screen_height)
+void EditorUI::BeginNewFrame(float screen_width, float screen_height)
 {
 	mFrameWorkableScreenSize.SetXY(screen_width, screen_height);
+	mBeginPrimaryPanel = false;
+	mFramePrimaryPanelSize.SetXY(0.0f, 0.0f);
 
 	ImGui_ImplOpenGL3_NewFrame();
 	ImGui_ImplGlfw_NewFrame();
 	ImGui::NewFrame();
 }
 
-void EditorImGui::RenderFrame()
+void EditorUI::RenderFrame()
 {
 	VX_VARIABLE_PROFILE_FUNCTION();
 	ImGui::Render();
 	ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 }
 
-void EditorImGui::Shutdown()
+void EditorUI::Shutdown()
 {
 	ImGui_ImplOpenGL3_Shutdown();
 	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
 }
 
-bool EditorImGui::UIBlockingMouseInput() const
+bool EditorUI::UIBlockingMouseInput() const
 {
 	ImGuiIO& io = ImGui::GetIO();
 	return io.WantCaptureMouse;
 }
 
-bool EditorImGui::UIBlockingInput()
+bool EditorUI::UIBlockingInput()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	return io.WantCaptureMouse || io.WantCaptureKeyboard;
 }
 
-bool EditorImGui::BeginMainMenu() const
+bool EditorUI::BeginMainMenu() const
 {
 	return ImGui::BeginMainMenuBar();
 }
 
-void EditorImGui::EndMainMenu()
+void EditorUI::EndMainMenu()
 {
 	ImGui::EndMainMenuBar();
 	ImVec2 size = ImGui::GetItemRectSize();
 	mFrameMenuItemY = size.y;
 }
 
-void EditorImGui::DrawParticlesOverlayItems(std::vector<vx::Particles::Particle>& particles) const
+void EditorUI::DrawParticlesOverlayItems(std::vector<vx::Particles::Particle>& particles) const
 {
 	auto draw_particle_prop = [](vx::Particles::Particle& particle) {
 		ImGui::DragFloat3("mPosition: ", &particle.mPosition[0], 0.1f);
@@ -405,11 +451,9 @@ struct BodyEulerAngle
 
 };
 template<vx::EMotionType Type>
-void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body_debug_info)
+void EditorUI::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyManager* body_manager)
+//void EditorUI::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body_debug_info)
 {
-
-
-	
 	static std::vector<BodyEulerAngle> cache_body_euler;
 
 	if (body.ID().Idx() >= cache_body_euler.size())
@@ -422,8 +466,13 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 	auto& euler = cache_body_euler[body.ID().Idx()];
 
 	Vec3 p = body.Position();
-	ImGui::Text("Island Idx: %d", body.GetIslandIndex());
-	ImGui::Text("Active Body Idx: %d", body.GetIndexInActiveBodies());
+	TextColoured(kAccent, "Island Idx/Active Idx/Awake: %d / %d / %s", body.GetIslandIndex(), body.GetIndexInActiveBodies(), (body.mAwake) ? "true" : "false");
+	TextColoured(kAccent, "Body Type/Shape: %s / %s", vx::MotionTypeNames(body.MotionType()), body.GetShape()->ShapeTypeName());
+	//ImGui::Text("Awake: %s", (body.mAwake) ? "true" : "false");
+
+	bool needs_activation = false;
+
+	ImGui::Separator();
 	if (ImGui::DragFloat3("Position ", &p[0], 0.01f))
 	{
 		///world -space
@@ -437,6 +486,7 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 			body.SetPosition(old_pos + delta);
 			//ImGui::TextColored(ImVec4(1, 0, 0, 1), "This causes position ui output missmatch in Local space");
 		}
+		if(body.IsDynamic() && !body.IsAwake()) needs_activation = true;
 	}
 
 	if (body.IsAwake())
@@ -445,7 +495,6 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 		euler.FromVec3(angle);
 	}
 
-	ImGui::Checkbox("Local Space", &euler.localSpace);
 	BodyEulerAngle old_angle = euler;
 	bool change = ImGui::DragFloat3("Euler", &euler[0], 0.25f);
 	if (change)
@@ -463,18 +512,20 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 		//world - space 
 		else
 			body.SetOrientation((dq * body.Orientation()).Normalised());
+
+		if(body.IsDynamic() && !body.IsAwake()) needs_activation = true;
 	}
+	ImGui::Checkbox("Local Space", &euler.localSpace);
+	ImGui::Separator();
 
 	if constexpr (Type == EMotionType::Dynamic)
 	{
-		ImGui::SliderFloat("Linear Damping", &body.mLinearDamping, 0.0f, 1.0f);
-		ImGui::SliderFloat("Angular Damping", &body.mAngularDamping, 0.0f, 1.0f);
-		ImGui::DragFloat("Max Squared Linear Speed", &body.mMaxLinearVelocity);
-		ImGui::DragFloat("Max Squared Angular Speed", &body.mMaxAngularVelocity);
+		EditorUI::SliderFloat("Linear Damping", &body.mLinearDamping, 0.0f, 1.0f);
+		EditorUI::SliderFloat("Angular Damping", &body.mAngularDamping, 0.0f, 1.0f);
 	}
 
-	ImGui::SliderFloat("Friction Coefficent", &body.mFriction, 0.0f, 1.0f);
-	ImGui::SliderFloat("Restitution Coefficent", &body.mRestitution, 0.0f, 1.0f);
+	EditorUI::SliderFloat("Friction Coefficent", &body.mFriction, 0.0f, 1.0f);
+	EditorUI::SliderFloat("Restitution Coefficent", &body.mRestitution, 0.0f, 1.0f);
 
 	if constexpr (Type == EMotionType::Dynamic)
 	{
@@ -483,35 +534,30 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 		ImGui::SameLine();
 		if (ImGui::Button("Clear Velocities", ImVec2(120, 0)))
 			body.ClearVelocities();
-		static vx::Vec3 wakeup_impluse = vx::Vec3::Forward() * 500;
-		ImGui::DragFloat3("Wakeup Impluse (Nm)", &wakeup_impluse[0], 0.1);
-		if (ImGui::Button("Wakeup", ImVec2(80, 0)))
-			body.WakeUp(wakeup_impluse);
-		static vx::Vec3 apply_force = vx::Vec3::Forward() * 10.0f;
-		static vx::StackString<32> apply_force_button_label("Apply Force 10N");
-		if (ImGui::DragFloat3("Force (N)", &apply_force[0], 0.1f))
+		if (ImGui::Button("Wakeup"))
+			needs_activation = true;
+
+		if (ImGui::TreeNodeEx("Max Speed", kTreeNodeFlags))
 		{
-			apply_force_button_label.Clear();
-			apply_force_button_label << "Apply Force " << apply_force.Length() << "N";
+			EditorUI::DragFloat("Squared Linear", &body.mMaxLinearVelocity);
+			EditorUI::DragFloat("Squared Angular", &body.mMaxAngularVelocity);
+			ImGui::TreePop();
 		}
-		if(ImGui::Button(apply_force_button_label.Data()))
-			body.AddForce(apply_force);
 		EDynamicsDofs _dof = body.GetAllowedDynamicsDof();
 		DrawAllowedDofFlags(_dof);
 		body.SetAllowedDynamicsDof(_dof);
 	}
 
+	vx::BodyDebug& body_debug_info = body_manager->GetBodyDebugInfo(body);
 	//ImGui::SliderFloat("mMass", &body.mMass, 0.0f, 200.0f, "%.1f");
 	//ImGui::SliderFloat("mRadius", &body.mRadius, 0.0f, 1.0f);
-	if (ImGui::TreeNode("Step phase"))
+	if (ImGui::TreeNodeEx("Step phase", kTreeNodeFlags))
 	{
-		EditorImGui::DrawBodyFlags(body_debug_info.simulationStats.phase);
+		EditorUI::DrawBodyFlags(body_debug_info.simulationStats.phase);
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNode("Properties state"))
+	if (ImGui::TreeNodeEx("Properties state", kTreeNodeFlags))
 	{
-		ImGui::Text("Body Type %s", (body.IsDynamic()) ? "Dynamic" : "Static");
-		ImGui::Text("Awake: %s", (body.mAwake) ? "true" : "false");
 		//ImGui::Text("Acceleration: %s", body.mAcceleration.ToString().c_str());
 		vx::Vec3 body_orientation_euler = body.Orientation().GetEulerAngles();
 		ImGui::SeparatorText("Transformation");
@@ -536,7 +582,7 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 		ImGui::Text("Diagonal Inverse Inertia: %s", body.GetLocalInvInertiaDiagonal().ToString().c_str());
 		ImGui::TreePop();
 	}
-	if (ImGui::TreeNode("Debug Shape Properies"))
+	if (ImGui::TreeNodeEx("Debug Shape Properies", kTreeNodeFlags))
 	{
 		auto shape = body.GetShape();
 		ImGui::Text("Type: %s", shape->ShapeTypeName());
@@ -562,16 +608,20 @@ void EditorImGui::DrawBodyOverlayDetailsImpl(vx::Body& body, vx::BodyDebug& body
 
 		ImGui::TreePop();
 	}
+
+	if (needs_activation)
+		body_manager->ActivateBodies(&body.ID(), 1);
 }
 
-void EditorImGui::DrawBodyOverlayDetails(vx::BodyID body_id, vx::PhysicsWorld* physics_world)
+void EditorUI::DrawBodyOverlayDetails(vx::BodyID& body_id, vx::PhysicsWorld* physics_world)
 {
-	using Draw_Body_Detail_Func = void(EditorImGui::*)(vx::Body&, vx::BodyDebug&);
+	//using Draw_Body_Detail_Func = void(EditorUI::*)(vx::Body&, vx::BodyDebug&);
+	using Draw_Body_Detail_Func = void(EditorUI::*)(vx::Body&, vx::BodyManager*);
 	static const Draw_Body_Detail_Func draw_body_table[3] =
 	{
-		&EditorImGui::DrawBodyOverlayDetailsImpl<EMotionType::Static>,
+		&EditorUI::DrawBodyOverlayDetailsImpl<EMotionType::Static>,
 		nullptr, //kinematic
-		&EditorImGui::DrawBodyOverlayDetailsImpl<EMotionType::Dynamic>
+		&EditorUI::DrawBodyOverlayDetailsImpl<EMotionType::Dynamic>
 	};
 
 	VX_ASSERT(body_id.IsValid());
@@ -579,23 +629,28 @@ void EditorImGui::DrawBodyOverlayDetails(vx::BodyID body_id, vx::PhysicsWorld* p
 
 	auto& body = physics_world->GetBodyManager().GetBody(body_id);
 	(this->*draw_body_table[static_cast<int>(body.MotionType())])(
-		body, physics_world->GetBodyManager().GetBodyDebugInfo(body_id));
+		body, &physics_world->GetBodyManager());
+		//body, physics_world->GetBodyManager().GetBodyDebugInfo(body_id));
 
 	if (ImGui::Button("Delete"))
+	{
 		physics_world->RemoveBody(body_id);
+		body_id = BodyID();
+	}
 }
 
-void EditorImGui::DrawBodiesOverlayItems(vx::BodyManager& body_manager, vx::PhysicsWorld* physics_world)
+void EditorUI::DrawBodiesOverlayItems(vx::BodyManager& body_manager, vx::PhysicsWorld* physics_world)
 {
 	std::vector<vx::Body>& bodies = body_manager.GetBodies();
 
 	//funcion map 
-	using Draw_Body_Detail_Func = void(EditorImGui::*)(vx::Body&, vx::BodyDebug&);
+	//using Draw_Body_Detail_Func = void(EditorUI::*)(vx::Body&, vx::BodyDebug&);
+	using Draw_Body_Detail_Func = void(EditorUI::*)(vx::Body&, vx::BodyManager*);
 	static const Draw_Body_Detail_Func draw_body_table[3] =
 	{
-		&EditorImGui::DrawBodyOverlayDetailsImpl<EMotionType::Static>,
+		&EditorUI::DrawBodyOverlayDetailsImpl<EMotionType::Static>,
 		nullptr, //kinematic
-		&EditorImGui::DrawBodyOverlayDetailsImpl<EMotionType::Dynamic>
+		&EditorUI::DrawBodyOverlayDetailsImpl<EMotionType::Dynamic>
 	};
 
 	uint32 count = static_cast<uint32>(bodies.size());
@@ -610,14 +665,15 @@ void EditorImGui::DrawBodiesOverlayItems(vx::BodyManager& body_manager, vx::Phys
 		ImGui::PushID(&p);
 		ImGui::SeparatorText(body_manager.GetBodyDebugName(id));
 		//draw_body_prop(p);
-		(this->*draw_body_table[static_cast<int>(p.MotionType())])(p, body_manager.GetBodyDebugInfo(p));
+		(this->*draw_body_table[static_cast<int>(p.MotionType())])(p, &body_manager);
+		//(this->*draw_body_table[static_cast<int>(p.MotionType())])(p, body_manager.GetBodyDebugInfo(p));
 		if (ImGui::Button("Delete"))
 			physics_world->RemoveBody(id);
 		ImGui::PopID();
 	}
 }
 
-void EditorImGui::DrawDistanceConstraintOverlayUniqueProps(vx::DistanceConstraint& constraint)
+void EditorUI::DrawDistanceConstraintOverlayUniqueProps(vx::DistanceConstraint& constraint)
 {
 	Vec3 _p = constraint.LocalAnchorA();
 	if (ImGui::DragFloat3("Local Anchor A", &_p[0], 0.01f))
@@ -649,7 +705,7 @@ void EditorImGui::DrawDistanceConstraintOverlayUniqueProps(vx::DistanceConstrain
 	}
 }
 
-void EditorImGui::DrawPointConstraintOverlayUniqueProps(vx::PointConstraint& constraint)
+void EditorUI::DrawPointConstraintOverlayUniqueProps(vx::PointConstraint& constraint)
 {
 	Vec3 _p = constraint.LocalAnchorA();
 	if (ImGui::DragFloat3("Local Anchor A", &_p[0], 0.01f))
@@ -664,7 +720,7 @@ void EditorImGui::DrawPointConstraintOverlayUniqueProps(vx::PointConstraint& con
 	ImGui::Text("Accumulated Lambda: %s", constraint.GetAccumulatedLambda().ToString().c_str());
 }
 
-void EditorImGui::DrawConstraintsOverlayItems(vx::BodyManager& body_manager, std::vector<vx::Constraint*>& constraints)
+void EditorUI::DrawConstraintsOverlayItems(vx::BodyManager& body_manager, std::vector<vx::Constraint*>& constraints)
 {
 	vx::uint32 count = 0;
 	for(int i = 0; i < constraints.size(); ++i)
@@ -700,9 +756,13 @@ void EditorImGui::DrawConstraintsOverlayItems(vx::BodyManager& body_manager, std
 	}
 }
 
-void EditorImGui::HelpInformation(const char* desc)
+void EditorUI::HelpInformation(const char* desc, bool show_icon)
 {
-	ImGui::TextDisabled("(?)");
+	if(show_icon)
+	{
+		ImGui::SameLine();
+		ImGui::TextDisabled("(?)");
+	}
 	if (ImGui::BeginItemTooltip())
 	{
 		ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
@@ -712,7 +772,7 @@ void EditorImGui::HelpInformation(const char* desc)
 	}
 }
 
-bool EditorImGui::EditQuatWithDrag(vx::Quat& quat, bool& editing, vx::Vec2& pad_size)
+bool EditorUI::EditQuatWithDrag(vx::Quat& quat, bool& editing, vx::Vec2& pad_size)
 {
 	ImVec2 drag_panel_size = ImVec2(pad_size.X(), pad_size.Y());
 	static float drag_senstitivity = 0.001f;
@@ -767,7 +827,7 @@ bool EditorImGui::EditQuatWithDrag(vx::Quat& quat, bool& editing, vx::Vec2& pad_
 
 
 
-bool EditorImGui::EditEulerWithDrag(vx::Vec3& euler, bool& editing, vx::Vec2& pad_size, const void* tex)
+bool EditorUI::EditEulerWithDrag(vx::Vec3& euler, bool& editing, vx::Vec2& pad_size, const void* tex)
 {
 	ImVec2 drag_panel_size = ImVec2(pad_size.X(), pad_size.Y());
 	static float drag_senstitivity = 0.5f;
@@ -826,7 +886,7 @@ bool EditorImGui::EditEulerWithDrag(vx::Vec3& euler, bool& editing, vx::Vec2& pa
 
 
 
-bool EditorImGui::ColourEdit3(const char* label, vx::Colour& c)
+bool EditorUI::ColourEdit3(const char* label, vx::Colour& c)
 {
 	vx::Vec4 v = c.ToVec4();
 	bool changed = ImGui::ColorEdit3(label, &v[0]);
@@ -835,7 +895,7 @@ bool EditorImGui::ColourEdit3(const char* label, vx::Colour& c)
 	return changed;
 }
 
-bool EditorImGui::ColourEdit4(const char* label, vx::Colour& c)
+bool EditorUI::ColourEdit4(const char* label, vx::Colour& c)
 {
 	vx::Vec4 v = c.ToVec4();
 	bool changed = ImGui::ColorEdit4(label, &v[0]);
@@ -844,7 +904,7 @@ bool EditorImGui::ColourEdit4(const char* label, vx::Colour& c)
 	return changed;
 }
 
-bool EditorImGui::InternalCombo(const char* label, int* current_item, const char* items_separated_by_zeros, int height_in_items)
+bool EditorUI::InternalCombo(const char* label, int* current_item, const char* items_separated_by_zeros, int height_in_items)
 {
 	int items_count = 0;
 	const char* p = items_separated_by_zeros;       // FIXME-OPT: Avoid computing this, or at least only when combo is open
@@ -874,7 +934,7 @@ bool EditorImGui::InternalCombo(const char* label, int* current_item, const char
 	return value_changed;
 }
 
-void EditorImGui::DrawBodyFlags(vx::EBodySimphaseFlags flags)
+void EditorUI::DrawBodyFlags(vx::EBodySimphaseFlags flags)
 {
 
 	//auto Flag_Status = [&](const char* label, vx::EBodyDebugFlags bit, ImVec4 active_colour)
@@ -897,9 +957,9 @@ void EditorImGui::DrawBodyFlags(vx::EBodySimphaseFlags flags)
 	ImGui::EndDisabled();
 }
 
-bool EditorImGui::DrawAllowedDofFlags(vx::EDynamicsDofs& flags)
+bool EditorUI::DrawAllowedDofFlags(vx::EDynamicsDofs& flags)
 {
-	if (ImGui::TreeNode("Allowed Degrees of freedom"))
+	if (ImGui::TreeNodeEx("Allowed Degrees of freedom", kTreeNodeFlags))
 	{
 		int _flags = int(flags);
 		bool toggled = ImGui::CheckboxFlags("All", &_flags, int(vx::EDynamicsDofs::All));

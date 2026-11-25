@@ -5,8 +5,10 @@
 
 #include "Vortrix/Dynamics/RagdollBuilder.h"
 
+#include "SampleFramework/EditorUI.h"
 
-
+#include "SampleFramework/Display/ApplicationWindow.h"
+#include "Vortrix/Core/Profiler.h"
 
 std::vector<vx::Ragdoll> mRagdolls;
 
@@ -70,14 +72,20 @@ void RagdollScenario::PostPhysicsStep(float dt)
 
 void RagdollScenario::OnUI()
 {
+	//using namespace vx::Profiler;
+	vx::Profiler::TimeTaken scope_time(__FUNCTION__, vx::Profiler::EProfileMode::VariableRate);
 	Scenario::OnUI();
 
 	if (mPhysicsWorld == nullptr)
 		return;
 
 	const auto& body_manager = mPhysicsWorld->GetBodyManager();
-	if (ImGui::Begin("Ragdolls"))
+	if (mAppUI->BeginPanel("##Ragdolls", nullptr,
+		500.0f, float(mAppWindow->Height()),
+		EditorUI::EPanelScreenAnchor::TopLeft, vx::Vec2(0.25f, 1.0f),
+		ImGuiWindowFlags_NoTitleBar))
 	{
+		EditorUI::TextColoured(EditorUI::kAccent, "Ragdolls");
 		for (auto& ragdoll : mRagdolls)
 		{
 			ImGui::PushID(&ragdoll);

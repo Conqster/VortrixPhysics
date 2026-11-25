@@ -97,7 +97,8 @@ namespace vx
 		BodyID id = AddBody(body);
 		bool success = id.IsValid();
 
-
+		/// TO-DO: might want to check, if old slot 
+		/// is available
 		if (id.Generation() <= 1U)
 			mBodiesDebugInfo.emplace_back();
 
@@ -187,6 +188,9 @@ namespace vx
 		mBodies[id.Idx()].mID = BodyID();
 		//this would affect shape 
 
+		/// also make sure, to remove debug info 
+		/// 
+		mBodiesDebugInfo[id.Idx()] = BodyDebug();
 	}
 
 	const BodyDebug& BodyManager::GetBodyDebugInfo(const Body& body) const

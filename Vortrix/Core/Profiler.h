@@ -441,8 +441,8 @@ namespace vx
 				(name, Profiler::EProfileMode::VariableRate, __VA_ARGS__)
 		
 		#define VX_VARIABLE_PROFILE_FUNCTION(...) \
-			VX_SELECT_2(__FUNCTION__, VX_PROFILER_FUNCTION_NO_PARAM, VX_PROFILER_FUNCTION_WITH_PARAM) \
-				(__FUNCTION__, Profiler::EProfileMode::VariableRate, __VA_ARGS__)
+			EXPAND_MACRO(VX_SELECT_2(__FUNCTION__, VX_PROFILER_FUNCTION_NO_PARAM, VX_PROFILER_FUNCTION_WITH_PARAM) \
+				(__FUNCTION__, Profiler::EProfileMode::VariableRate, __VA_ARGS__) )
 	
 	#endif // VX_USE_TRACY
 	

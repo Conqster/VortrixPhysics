@@ -50,13 +50,13 @@ public:
 	struct State
 	{
 		State(vx::Vec3 pos = vx::Vec3::Zero(),
-			vx::Vec3 fwd = vx::Vec3(0.0f, 0.0f, -1.0f), vx::Vec3 up = vx::Vec3(0.0f, 1.0f, 0.0f)) :
-			position(pos), forward(fwd), up(up) 
+			vx::Vec3 fwd = vx::Vec3(0.0f, 0.0f, -1.0f), vx::Vec3 _up = vx::Vec3(0.0f, 1.0f, 0.0f)) :
+			position(pos), forward(fwd), up(_up) 
 		{
-			orientation = vx::Quat::LookRotation(fwd, up);
-			VX_ASSERT_WARN(orientation.IsUnitQuat(), "Issue Camera State Orientation is not unit.");
+			orientation = vx::Quat::LookRotation(fwd, _up);
 			forward = orientation.RotateAxisZ();
 			up = orientation.RotateAxisY();
+			VX_ASSERT_WARN(orientation.IsUnitQuat(), "Issue Camera State Orientation is not unit.");
 		}
 
 		State(vx::Vec3 pos, float _pitch, float yaw) :

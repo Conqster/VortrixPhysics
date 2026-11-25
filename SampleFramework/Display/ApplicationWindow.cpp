@@ -328,7 +328,7 @@ bool ApplicationWindow::CreateDisplayWindow(const char* name, bool full_screen)
 	glfwSetWindowIconifyCallback(mWindow, OnWindowMinimisedCallback);
 	glfwSetWindowUserPointer(mWindow, this);
 
-	
+
 	return true;
 }
 
@@ -452,6 +452,7 @@ void ApplicationWindow::OnWindowPosCallback(GLFWwindow* window, int x, int y)
 	{
 		//win->mWindowPos[0] = x;
 		//win->mWindowPos[1] = y;
+
 	}
 }
 
@@ -461,4 +462,3 @@ void ApplicationWindow::OnWindowMinimisedCallback(GLFWwindow* window, int iconif
 		win->mMinimised = (iconified == GLFW_TRUE) ? true : false;
 	VX_LOG_INFO("Minimised: ", iconified);
 }
-

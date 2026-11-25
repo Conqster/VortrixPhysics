@@ -275,7 +275,7 @@ namespace vx
 		int num_threads = 0;
 		num_threads = std::thread::hardware_concurrency() - 1;
 		mTaskCoordinator = new TaskCoordinatorMt(VxMin(mSettings->maxConcurrency, num_threads));
-
+		mSettings->maxConcurrency = mTaskCoordinator->MaxConcurrency();
 
 		mIslandCoordinator = new IslandCoordinator;
 		mIslandCoordinator->Init(mBodyManager.MaxBodies(), mContactConstraintSolver.MaxConstraints(), 10800);
@@ -1573,7 +1573,7 @@ namespace vx
 		mContactConstraintSolver.DebugDraw(debug_renderer, mConstraintSolver, &mBodyManager, draw_settings);
 
 		if(mSettings->drawSettings->drawDebugInertia)
-			QuickDebugDrawInertia(debug_renderer);
+			DrawBodyInertia(debug_renderer);
 		//////DEBUG BOX BOX SAT 
 		if(draw_settings.drawAABBContactManifoldInFrame)
 		{
@@ -1769,7 +1769,7 @@ namespace vx
 
 	}
 
-	void PhysicsWorld::QuickDebugDrawInertia(DebugGizmosRenderer* debug_renderer)
+	void PhysicsWorld::DrawBodyInertia(DebugGizmosRenderer* debug_renderer)
 	{
 		VX_PROFILE_FUNCTION();
 		for(const auto& body : mBodyManager.GetBodies())
@@ -1793,16 +1793,6 @@ namespace vx
 			debug_renderer->DrawLine(com, com + up * axis_len, Colour::sGreen);
 			debug_renderer->DrawLine(com, com + fwd * axis_len, Colour::sBlue);
 
-
-			///equivalent inertia box
-			float w = VxSqrt(VxMax(0.0f, 6.0f * (I_local.Y() + I_local.Z() - I_local.X()) / mass));
-			float h = VxSqrt(VxMax(0.0f, 6.0f * (I_local.X() + I_local.Z() - I_local.Y()) / mass));
-			float d = VxSqrt(VxMax(0.0f, 6.0f * (I_local.X() + I_local.Y() - I_local.Z()) / mass));
-
-			float h_w = w * 0.5f;
-			float h_h = h * 0.5f;
-			float h_d = d * 0.5f;
-
 			Vec3 diag = I_local * (12.0f / mass);
 			Vec3 _size = Vec3(VxSqrt(0.5f * (-diag[0] + diag[1] + diag[2])),
 				VxSqrt(0.5f * (diag[0] - diag[1] + diag[2])),
@@ -1816,14 +1806,17 @@ namespace vx
 			////momentum
 			//	body.GetPointVelocityRelCOM
 			Vec3 ang_vel = body.AngularVelocity();
-			Vec3 local_omega(ang_vel.Dot(rt), ang_vel.Dot(up), ang_vel.Dot(fwd));
-			Vec3 local_L(local_omega.X() * I_local.X(),
-				local_omega.Y() * I_local.Y(),
-				local_omega.Z() * I_local.Z());
+			if(ang_vel.LengthSq() > kEpsilon)
+			{
+				Vec3 local_omega(ang_vel.Dot(rt), ang_vel.Dot(up), ang_vel.Dot(fwd));
+				Vec3 local_L(local_omega.X() * I_local.X(),
+					local_omega.Y() * I_local.Y(),
+					local_omega.Z() * I_local.Z());
 
-			Vec3 world_L = (rt * local_L.X()) + (up * local_L.Y()) + (fwd * local_L.Z());
-			float momentum_scale = 0.5f;
-			debug_renderer->DrawLine(com, com + world_L * momentum_scale, Colour::sMagenta);
+				Vec3 world_L = (rt * local_L.X()) + (up * local_L.Y()) + (fwd * local_L.Z());
+				debug_renderer->DrawLine(com, com + world_L.Normalised() * axis_len * 2.0f, Colour::sMagenta);
+				debug_renderer->DrawLine(com, com + ang_vel.Normalised() * axis_len * 2.0f, Colour::sCyan);
+			}
 		}
 	}
 

@@ -28,7 +28,7 @@ namespace vx {
 }
 class Camera;
 class ApplicationWindow;
-class EditorImGui;
+class EditorUI;
 struct AppCreateConstraint;
 
 enum class EClickEvent : vx::uint8
@@ -65,7 +65,7 @@ public:
 	void SetCamera(Camera* cam) { mAppCamera = cam; }
 	void SetDebugGizmos(vx::DebugGizmosRenderer* debug_gizmos) { mDebugGizmos = debug_gizmos; }
 	void SetWindow(ApplicationWindow* app_win) { mAppWindow = app_win; }
-	void SetAppEditor(EditorImGui* ui) { mAppUI = ui; }
+	void SetAppEditor(EditorUI* ui) { mAppUI = ui; }
 
 	bool GetAllowBaseScenarioMouseCast() const { return mAllowBaseMouseCast; }
 	void SetAllowBaseScenarioMouseCast(bool v) { mAllowBaseMouseCast = v; }
@@ -110,7 +110,7 @@ protected:
 	vx::DebugGizmosRenderer* mDebugGizmos = nullptr;
 
 	//hack for now
-	EditorImGui* mAppUI = nullptr;
+	EditorUI* mAppUI = nullptr;
 
 	bool mAllowBaseMouseCast = true;
 	bool BlockedMouseCastRay();

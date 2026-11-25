@@ -3,7 +3,7 @@
 
 #include "Vortrix/PhysicsWorld.h"
 
-#include "SampleFramework/EditorImGui.h"
+#include "SampleFramework/EditorUI.h"
 
 #include <Vortrix/Visuals/Renderers.h>
 #include "Vortrix/Collision/Shapes/SphereShape.h"
@@ -212,9 +212,17 @@ void WorldQueriesScenario::PostPhysicsStep(float dt)
 
 void WorldQueriesScenario::OnUI()
 {
-	if (ImGui::Begin("World Queries Scenario"))
+	Scenario::OnUI();
+
+	if (mPhysicsWorld == nullptr || mAppUI == nullptr)
+		return;
+
+	if (mAppUI->BeginPanel("##World Queries Scenario", nullptr,
+		350, 150, EditorUI::EPanelScreenAnchor::HackTopRightConsiderPrimaryPanel,
+		1.0f / vx::Vec2(4.0f, 5.0f), ImGuiWindowFlags_NoTitleBar))
 	{
-		EditorImGui::Combo("Query Type", mQueryType, kQueryTypeNames);
+		EditorUI::TextColoured(EditorUI::kAccent, "World Queries Scenario");
+		EditorUI::Combo("Query Type", mQueryType, kQueryTypeNames);
 		bool changed = ImGui::DragFloat3("Ray Origin", &mExperimentRay.origin[0], 0.1f);
 		vx::Vec3 dir = mExperimentRay.displacement;// .Normalised();
 		changed |= ImGui::DragFloat3("Ray displacement", &dir[0], 0.1f);

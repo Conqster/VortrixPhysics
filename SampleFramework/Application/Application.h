@@ -5,7 +5,7 @@
 #include "SampleFramework/Camera.h"
 
 
-#include "SampleFramework/EditorImGui.h"
+#include "SampleFramework/EditorUI.h"
 
 #include "Vortrix/Collision/Shapes/Shape.h"
 
@@ -30,7 +30,15 @@ public:
 		int multipleStep = 0;//nSteps;
 
 		int nStep = 5;
+
+		float frameTimeEmaAvgMs = 0.0f;
 	};
+
+	void UpdateStepTimeEmaAvg(float physics_step_time)
+	{
+		mState.frameTimeEmaAvgMs = 
+			mState.frameTimeEmaAvgMs * 0.9f + physics_step_time * 0.1f;
+	}
 
 	int Rate() const { return mFrequency; }
 	float FixedTimeStep() const { return mFixedTimeStep; }
@@ -126,9 +134,10 @@ private:
 
 		vx::uint32 iterationCountPerSequence = 4;
 
-		bool reloadPhysicsEveryThreadSequence = false;
+		bool reloadPhysicsEveryThreadSequence = true;
 
 		bool closeAppOnComplete = false;
+		bool pauseOnComplete = true;
 
 		bool triggerNewCapture = false;
 
@@ -171,18 +180,18 @@ private:
 	float mCurrentScenarioDuration = 0.0f;
 	std::vector<Scenario*> mPendingRunScenarios;
 	void LoadScenarioWindow();
-	void ScenarioInspectionWindow();
+	void ScenariosInspectionPanel_Details();
 	void ProgramWindowStateInfoWindow();
 
 	void DebugDrawWindow(bool* p_open);
 
-	void ProfilingCaptureWindow();
+	void ProfilingCaptureWindow_WIP();
 
 	void TempPhysicsSettings(bool* p_open);
 
 	vx::RenderSettings mPhysicsRenderSettings{};
 
-	EditorImGui mUI;
+	EditorUI mUI;
 
 public:
 	Application() = delete;
@@ -201,7 +210,8 @@ private:
 
 	void PhysicsStep(double frame_dt);
 
-	void PhysicsSubstepProfilingDataCapture();
+	/// 
+	void CapturePhysicsSubstepVelocitySolverProfile();
 
 	bool bFailLaunch = false;
 
@@ -259,8 +269,6 @@ private:
 	void SolverBodyPhysicsBodyWindow();
 
 	void CreateConstraintsWindow();
-	
-	void ApplyForceToSelectedBody();
 
 	void CreateNewCustomPhysicsObject();
 
@@ -285,18 +293,19 @@ private:
 
 	struct
 	{
+		bool enable = true;
 		bool appHelpWindow = false;
 		bool activeBodiesList = false;
 		bool islandCoord = false;
 		bool applyExternalEffectOnBodies = false;
-		bool scenarioWindowManagement = false;
+		bool scenariosInspection = false;
 		bool loadScenarioWindow= false;
 		bool createNewCustomPhysicsObject = false;
 		bool createConstraints = false;
 		bool showSolverBodyPhysicsBodyWindow = false;
 		bool profilingCaptureWindow = false;
 		bool programWindowStateInfoWindow = false;
-	}mPhysicsImGuiWindows;
+	}mPhysicsUIPanels;
 
 
 	double mPhysicsStepDuration;
@@ -330,8 +339,16 @@ private:
 	AppCreateConstraint mAppCreateConstraint;
 
 
-	vx::BodyID mSelectedBodyToApplyForce;
-	vx::Vec3 mSelectedBodyToApplyForceFwd;
+	struct SimSelectedBody {
+		vx::BodyID mBody;
+		bool mEditingForce = false;
+		vx::Vec3 mForceDir;
+		void Reset() {
+			mBody = vx::BodyID();
+			mEditingForce = false;
+			mForceDir.ToZero();
+		}
+	}mSimSelectedBody;
 
 	std::vector<vx::RefConst<vx::Shape>> mCreatedShape;
 	vx::RefConst<vx::Shape> TryGetCreatedShape(const vx::Float3& he, float density, const vx::EShapeType shape_type) const;

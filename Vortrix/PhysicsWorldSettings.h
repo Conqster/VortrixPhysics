@@ -66,8 +66,8 @@ namespace vx
 	enum class EBodyColourMode : int8
 	{
 		Instances,		/// random per instance
-		MotionState,	/// Dynamic -> yellow/oragne ; Sleeping -> dull red ; Static -> grey
-		MotionType,		/// Dynamic -> yellow ; Static -> grey ; Kinematic blue
+		MotionState,	/// Dynamic -> yellow/oragne ; Sleeping -> dull red ; Static -> grey ; Kinematic -> blue
+		MotionType,		/// Dynamic -> yellow ; Static -> grey ; Kinematic -> blue
 		ShapeType,		/// for now - complexity 0 --> x; plane grey (not low but rarely used), Sphere Cyan, Capsule Light green, Box yellow, {Cylinder Orange}
 		Collision,		/// Colliding(dyn-dyn/dyn-static) / not
 		Phase,			/// Broad / Narrow / Colliding convert this to heat based
@@ -258,7 +258,7 @@ namespace vx
 		float drawPerIslandConstraintGroupColourAlpha = 1.0f;
 		
 		/// bodies
-		EBodyColourMode bodyColourMode = EBodyColourMode::Instances;
+		EBodyColourMode bodyColourMode = EBodyColourMode::MotionState;
 		//bool drawBounds = false; //for drawAABB, drawOBB
 		bool drawAABB = false;
 		bool drawOBB = false;

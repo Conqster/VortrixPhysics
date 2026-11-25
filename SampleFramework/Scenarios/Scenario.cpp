@@ -7,7 +7,7 @@
 
 #include "SampleFramework/Camera.h"
 
-#include "SampleFramework/EditorImGui.h"
+#include "SampleFramework/EditorUI.h"
 #include "SampleFramework/Display/ApplicationWindow.h"
 
 #include <Vortrix/Visuals/Renderers.h>

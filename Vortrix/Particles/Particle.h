@@ -2,7 +2,7 @@
 #include <Vortrix/Vortrix.h>
 
 
-//#include "EditorImGui.h"
+//#include "EditorUI.h"
 
 namespace vx::Particles
 {
@@ -14,7 +14,7 @@ namespace vx::Particles
 			mDamping(damping) {
 			mInverseMass = static_cast<float>((mass > 0.0) ? 1.0 / mass : 0.0);
 		}
-		friend class EditorImGui;
+		friend class EditorUI;
 	private:
 		Vec3 mVelocity = Vec3(0.0f);
 
