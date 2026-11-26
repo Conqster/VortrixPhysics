@@ -5,13 +5,20 @@ Vortrix Physics: A real-time 3D rigid body physics engine for games and simulati
 <table align = "center"> 
   <tr>
       <td>
-          <a href="https://youtu.be/Q1xmI2qV5-k"><img src = "https://img.youtube.com/vi/Q1xmI2qV5-k/hqdefault.jpg"/a>
+          <a href="https://youtu.be/Q1xmI2qV5-k">
+            <img src = "Docs/PhysicsSandbox.jpeg" alt="Vortrix Demo" width="100%">
+            </a>
+      </td>
+      <td>
+          <a href="https://youtu.be/Q1xmI2qV5-k">
+            <img src = "Docs/IslandColouring&Decomposition.jpeg" width="100%">
+          </a>
       </td>
   </tr>
   <tr>
-     <th>
-         <i>Sample video (youtube)</i>
-     </th>
+     <td colspan="2" align="center">
+        <a herf="https://youtu.be/Q1xmI2qV5-k"><i>Watch Demo Video (YouTube)</i></a>
+     </td>
   </tr>
 </table>
             
@@ -73,13 +80,16 @@ This is an architectural overview of the simulation pipeline, with multi-threade
 ### Motivation
 Vortrix started as a personal deep-dive into physics simulation, building on a mechanical engineering background and prior graphics work (OpenGL, Vulkan). The broadphase BVH was adapted from an earlier [mesh ray tracer](https://www.youtube.com/watch?v=4LQCXBlVSwc) I built with an OpenGL compute shader; a transfer of the same acceleration structure technique from graphics to physics. The engine later became the experimental platform for my MSc dissertation, *Scalability of Task-Based Island Solvers under Non-Uniform Workload in Real-time Rigid Body Simulation*, which motivated its multicore island-solving architecture.
 
+### Performance
+Vortrix uses a task-based solver with a persistent worker pool. Large simulation islands are decomposed into smaller constraint batches to expose additional parallelism. Benchmarks show up to ~8x solver speedup at 16 workers (Ryzen 7 6800H). See [Performance & Scalability](Docs/Performance&Scalability(Island).md) for methodology and results.
+
 
 ### Future Prospects
 The long-term roadmap for Vortrix is partitioned across physics optimisation, diagnostics tooling, and game AI subsystem; extending the same scalability investigation themes beyond the solver. 
 
 * **Core Physics & Parallel Optimisation**
   * **Multithreaded warm starting:** Resolve the existing data race on shared `SolverBody` velocities so the current sequential warm-start pass can move into per-batch island tasks. Also `CommitStateConstraint` lambda persistence so non-contact constraints benefit from warm starting, not just contacts.
-  * **Kinematic bodies:** Add `*EMotionType::Kinematic*`.
+  * **Kinematic bodies:** Add *`EMotionType::Kinematic`*.
   * **Split-island position correction:** Extend the velocity solver's `Splitter` batching to the positional correction phase, which currently claims whole islands atomically, removing the tail-latency bottleneck when one worker is left holding the largest island.
   * **Collision filtering:** Per-body collision groups / no-contact pairs so connected bodies (e.g ragdoll limbs) ignore each other but collide with everything else.
   * **Parallel broadphase:** Parallelise BVH dirty-node traversal and pair generation `BVHBroadphase::ComputeCollidingPair` currently runs on a single worker while the rest integrate velocities.
@@ -91,6 +101,11 @@ The long-term roadmap for Vortrix is partitioned across physics optimisation, di
   * Framework code cleanup and reorganisation
   * **Order-independent transparency (OIT):** Implement a compute-driven OIT buffer for correctly sorted alpha rendering; required because the renderer's single instanced draw call per mesh/geometry type forbids CPU-side draw-order sorting.
   * **Screen-space ambient occlusion (SSAO):** Add an SSAO pass to the debug renderer to give penetration and contact stacking clearer visual depth cues during inspection.
+
+* **Animation & Character**
+  * Skeletal Animation
+  * Inverse Kinematics
+  * Physics-driven animation
 
 * **Game AI**
   * **Runtime navmesh generation:** Cook pathfinding surface directly from static broadphase geometry outputs rather than a separate mesh pipeline.
@@ -104,8 +119,8 @@ The long-term roadmap for Vortrix is partitioned across physics optimisation, di
   
 ## Build
 Quick building
-* Requires Visual Studio 2022 or 2026
-* Requires CMake 3.18+
+* Requires Visual Studio 2022 or 2026.
+* Requires CMake 3.18+.
 * Run `generate_vs2022.bat`, `generate_vs2026.bat` respectively.
 * Build without pre-configured `generate_vs2022.bat` & `generate_vs2026.bat`
   * Command line `cmake -S . -B build -G "Visual Studio 17 2022"`, `cmake -S . -B build -G "Visual Studio 18 2026"` respectively.
